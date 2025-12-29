@@ -31,6 +31,12 @@ pub fn Proto::constant(self : Proto, index : Int) -> @value.TValue {
 }
 
 ///|
+/// Get all constants
+pub fn Proto::constants(self : Proto) -> Array[@value.TValue] {
+  self.constants
+}
+
+///|
 /// Execute bytecode on a Lua state
 /// Now supports function calls via call stack
 pub fn execute(state : @state.LuaState, proto : Proto) -> Unit raise VMError {

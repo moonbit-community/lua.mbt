@@ -372,6 +372,109 @@ pub fn Compiler::compile_stmt(
       // Pop loop variable from locals
       // TODO: Proper scope management
     }
+    @parse.Stmt::FunctionDef(name, params, is_vararg, body) => {
+      // Compile function body in a new compiler
+      let func_compiler = Compiler::new()
+
+      // Register parameters as locals
+      for param in params {
+        func_compiler.add_local(param) |> ignore
+      }
+
+      // Compile function body
+      func_compiler.compile_stmt(body)
+
+      // Get the function code and constants
+      let proto = func_compiler.finish()
+      let func_value = @value.FunctionValue::new(proto.code(), proto.constants)
+
+      // Add function to constants
+      let const_idx = self.add_constant(@value.TValue::function(func_value))
+
+      // Create or find the local for the function name
+      let func_reg = match self.find_local(name) {
+        Some(reg) => reg
+        None => {
+          // Global function - for now, store as local
+          self.add_local(name)
+        }
+      }
+
+      // Load function from constants
+      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, const_idx))
+    }
+    @parse.Stmt::LocalFunctionDef(name, params, is_vararg, body) => {
+      // Similar to FunctionDef but creates a local immediately
+      // Register function name first (for recursion)
+      let func_reg = self.add_local(name)
+
+      // Compile function body
+      let func_compiler = Compiler::new()
+
+      // Register parameters as locals
+      for param in params {
+        func_compiler.add_local(param) |> ignore
+      }
+
+      // Compile function body
+      func_compiler.compile_stmt(body)
+
+      // Get the function code and constants
+      let proto = func_compiler.finish()
+      let func_value = @value.FunctionValue::new(proto.code(), proto.constants)
+
+      // Add function to constants and load it
+      let const_idx = self.add_constant(@value.TValue::function(func_value))
+      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, const_idx))
+    }
+    @parse.Stmt::FunctionCall(func_expr, args) => {
+      // Compile function call as a statement (ignore return values)
+      // Compile function expression
+      let func_reg = self.compile_expr(func_expr)
+
+      // Compile arguments and place them after function
+      let arg_count = args.length()
+      for arg in args {
+        self.compile_expr(arg) |> ignore
+      }
+
+      // Emit CALL instruction: CALL func_reg arg_count result_count
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Call,
+          func_reg,
+          arg_count,
+          0, // 0 means no return values expected for statement
+          false,
+        ),
+      )
+    }
+    @parse.Stmt::Return(exprs) => {
+      // Compile return values
+      let return_count = exprs.length()
+      let mut start_reg = 0
+
+      if return_count > 0 {
+        // Compile first return value to know starting register
+        start_reg = self.compile_expr(exprs[0])
+
+        // Compile remaining return values
+        for i = 1; i < return_count; i = i + 1 {
+          self.compile_expr(exprs[i]) |> ignore
+        }
+      }
+
+      // Emit RETURN instruction
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Return,
+          start_reg,
+          return_count,
+          0,
+          false,
+        ),
+      )
+    }
     _ => () // Ignore other statements for now
   }
 }
@@ -774,6 +877,31 @@ pub fn Compiler::compile_expr(
 
       self.patch_jump(skip_false)
       result_reg
+    }
+    @parse.Expr::Call(func_expr, args) => {
+      // Compile function call expression
+      // Function expression
+      let func_reg = self.compile_expr(func_expr)
+
+      // Compile arguments
+      let arg_count = args.length()
+      for arg in args {
+        self.compile_expr(arg) |> ignore
+      }
+
+      // Emit CALL instruction: function expects 1 return value
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Call,
+          func_reg,
+          arg_count,
+          1, // Expect 1 return value
+          false,
+        ),
+      )
+
+      // The result will be in func_reg position after call
+      func_reg
     }
     _ => {
       // For unimplemented expressions, just return a nil
