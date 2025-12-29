@@ -40,9 +40,17 @@ pub fn execute(state : @state.LuaState, proto : Proto) -> Unit raise VMError {
     state.push(@value.TValue::nil())
   }
 
-  // Execute each instruction in sequence
-  for instr in proto.code {
-    execute_instruction(state, instr, proto.constants)
+  // Execute instructions using program counter for control flow
+  let mut pc = 0
+  while pc < proto.code.length() {
+    let instr = proto.code[pc]
+    let jump_offset = execute_instruction(state, instr, proto.constants)
+
+    // Handle jumps: if jump_offset is Some, adjust PC
+    match jump_offset {
+      Some(offset) => pc = pc + 1 + offset
+      None => pc = pc + 1
+    }
   }
 }
 
@@ -75,11 +83,12 @@ fn calculate_max_register(code : Array[@opcodes.Instruction]) -> Int {
 
 ///|
 /// Execute a single instruction
+/// Returns Some(offset) for jump instructions, None for sequential execution
 pub fn execute_instruction(
   state : @state.LuaState,
   instr : @opcodes.Instruction,
   constants : Array[@value.TValue],
-) -> Unit raise VMError {
+) -> Int? raise VMError {
   let opcode = instr.get_opcode()
   match opcode {
     @opcodes.OpCode::Move => {
@@ -94,6 +103,7 @@ pub fn execute_instruction(
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in MOVE")
       }
+      None
     }
     @opcodes.OpCode::LoadK => {
       // LoadK: R[A] := K[Bx]
@@ -107,6 +117,7 @@ pub fn execute_instruction(
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in LOADK")
       }
+      None
     }
     @opcodes.OpCode::LoadFalse => {
       // LoadFalse: R[A] := false
@@ -117,6 +128,7 @@ pub fn execute_instruction(
             message="Invalid register write in LOADFALSE",
           )
       }
+      None
     }
     @opcodes.OpCode::LoadTrue => {
       // LoadTrue: R[A] := true
@@ -127,6 +139,7 @@ pub fn execute_instruction(
             message="Invalid register write in LOADTRUE",
           )
       }
+      None
     }
     @opcodes.OpCode::LoadNil => {
       // LoadNil: R[A] := nil
@@ -137,17 +150,24 @@ pub fn execute_instruction(
             message="Invalid register write in LOADNIL",
           )
       }
+      None
     }
-    @opcodes.OpCode::Add =>
+    @opcodes.OpCode::Add => {
       // Add: R[A] := R[B] + R[C]
       execute_binary_arith(state, instr, fn(a, b) { a + b }, "ADD")
-    @opcodes.OpCode::Sub =>
+      None
+    }
+    @opcodes.OpCode::Sub => {
       // Sub: R[A] := R[B] - R[C]
       execute_binary_arith(state, instr, fn(a, b) { a - b }, "SUB")
-    @opcodes.OpCode::Mul =>
+      None
+    }
+    @opcodes.OpCode::Mul => {
       // Mul: R[A] := R[B] * R[C]
       execute_binary_arith(state, instr, fn(a, b) { a * b }, "MUL")
-    @opcodes.OpCode::Div =>
+      None
+    }
+    @opcodes.OpCode::Div => {
       // Div: R[A] := R[B] / R[C]
       execute_binary_arith(
         state,
@@ -160,7 +180,9 @@ pub fn execute_instruction(
         },
         "DIV",
       )
-    @opcodes.OpCode::Mod =>
+      None
+    }
+    @opcodes.OpCode::Mod => {
       // Mod: R[A] := R[B] % R[C]
       execute_binary_arith(
         state,
@@ -173,9 +195,13 @@ pub fn execute_instruction(
         },
         "MOD",
       )
-    @opcodes.OpCode::Pow =>
+      None
+    }
+    @opcodes.OpCode::Pow => {
       // Pow: R[A] := R[B] ^ R[C]
       execute_binary_arith(state, instr, fn(a, b) { a.pow(b) }, "POW")
+      None
+    }
     @opcodes.OpCode::Unm => {
       // Unm: R[A] := -R[B]
       let a = instr.get_a()
@@ -191,6 +217,7 @@ pub fn execute_instruction(
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in UNM")
       }
+      None
     }
     @opcodes.OpCode::Not => {
       // Not: R[A] := not R[B]
@@ -205,13 +232,21 @@ pub fn execute_instruction(
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in NOT")
       }
+      None
     }
-    @opcodes.OpCode::Eq =>
+    @opcodes.OpCode::Eq => {
       // Eq: if (R[B] == R[C]) ~= k then PC++
-      execute_comparison(state, instr, fn(a, b) { a.equal(b) }, "EQ")
-    @opcodes.OpCode::Lt =>
+      let should_skip = execute_comparison(
+        state,
+        instr,
+        fn(a, b) { a.equal(b) },
+        "EQ",
+      )
+      if should_skip { Some(0) } else { None }
+    }
+    @opcodes.OpCode::Lt => {
       // Lt: if (R[B] < R[C]) ~= k then PC++
-      execute_comparison(
+      let should_skip = execute_comparison(
         state,
         instr,
         fn(a, b) {
@@ -221,9 +256,11 @@ pub fn execute_instruction(
         },
         "LT",
       )
-    @opcodes.OpCode::Le =>
+      if should_skip { Some(0) } else { None }
+    }
+    @opcodes.OpCode::Le => {
       // Le: if (R[B] <= R[C]) ~= k then PC++
-      execute_comparison(
+      let should_skip = execute_comparison(
         state,
         instr,
         fn(a, b) {
@@ -233,6 +270,13 @@ pub fn execute_instruction(
         },
         "LE",
       )
+      if should_skip { Some(0) } else { None }
+    }
+    @opcodes.OpCode::Jmp => {
+      // Jmp: PC += sBx
+      let sbx = instr.get_sbx()
+      Some(sbx)
+    }
     _ => raise VMError::InvalidOpcode(op=@opcodes.opcode_to_int(opcode))
   }
 }
@@ -283,15 +327,17 @@ fn execute_binary_arith(
 }
 
 ///|
-/// Helper: Execute comparison operation (for now, just evaluate, don't jump)
+/// Helper: Execute comparison operation
+/// Returns true if the next instruction should be skipped
 fn execute_comparison(
   state : @state.LuaState,
   instr : @opcodes.Instruction,
   op : (@value.TValue, @value.TValue) -> Bool raise VMError,
   name : String,
-) -> Unit raise VMError {
+) -> Bool raise VMError {
   let b = instr.get_b()
   let c = instr.get_c()
+  let k = instr.get_k()
   let val_b = state.get(b + 1) catch {
     _ =>
       raise VMError::RuntimeError(
@@ -305,7 +351,8 @@ fn execute_comparison(
       )
   }
 
-  // Just evaluate the comparison for now
-  // In a full implementation, this would affect control flow
-  ignore(op(val_b, val_c))
+  // Evaluate comparison and check against k flag
+  let comparison_result = op(val_b, val_c)
+  // Skip next instruction if (comparison_result == k)
+  comparison_result == k
 }

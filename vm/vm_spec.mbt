@@ -49,11 +49,12 @@ pub fn execute(state : @state.LuaState, proto : Proto) -> Unit raise VMError {
 
 ///|
 /// Execute a single instruction
+/// Returns Some(offset) for jump instructions, None for sequential execution
 #declaration_only
 pub fn execute_instruction(
   state : @state.LuaState,
   instr : @opcodes.Instruction,
   constants : Array[@value.TValue],
-) -> Unit raise VMError {
+) -> Int? raise VMError {
   ...
 }

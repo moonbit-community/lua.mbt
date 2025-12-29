@@ -10,6 +10,13 @@ struct LocalVar {
 } derive(Show)
 
 ///|
+/// Jump label for backpatching
+struct JumpLabel {
+  pc : Int // -1 means not yet defined
+  patches : Array[Int] // Instruction positions to patch
+} derive(Show)
+
+///|
 /// Compiler state
 pub struct Compiler {
   // Generated instructions
@@ -23,12 +30,21 @@ pub struct Compiler {
 
   // Next free register
   mut next_register : Int
+
+  // Jump labels for control flow
+  jump_labels : Array[JumpLabel]
 } derive(Show)
 
 ///|
 /// Create a new compiler
 pub fn Compiler::new() -> Compiler {
-  Compiler::{ code: [], constants: [], locals: [], next_register: 0 }
+  Compiler::{
+    code: [],
+    constants: [],
+    locals: [],
+    next_register: 0,
+    jump_labels: [],
+  }
 }
 
 ///|
@@ -98,6 +114,39 @@ fn Compiler::add_local(
 /// Emit an instruction
 fn Compiler::emit(self : Compiler, instr : @opcodes.Instruction) -> Unit {
   self.code.push(instr)
+}
+
+///|
+/// Get current code position (PC)
+fn Compiler::current_pc(self : Compiler) -> Int {
+  self.code.length()
+}
+
+///|
+/// Emit a jump instruction with placeholder, returns the patch position
+fn Compiler::emit_jump(self : Compiler) -> Int {
+  let pos = self.current_pc()
+  // Emit jump with 0 offset, to be patched later
+  self.emit(@opcodes.Instruction::asbx(@opcodes.OpCode::Jmp, 0, 0))
+  pos
+}
+
+///|
+/// Patch a jump instruction at given position to jump to current PC
+fn Compiler::patch_jump(self : Compiler, pos : Int) -> Unit {
+  let offset = self.current_pc() - pos - 1
+  self.code[pos] = @opcodes.Instruction::asbx(@opcodes.OpCode::Jmp, 0, offset)
+}
+
+///|
+/// Patch a jump instruction to jump to specific target
+fn Compiler::patch_jump_to(
+  self : Compiler,
+  pos : Int,
+  target : Int,
+) -> Unit {
+  let offset = target - pos - 1
+  self.code[pos] = @opcodes.Instruction::asbx(@opcodes.OpCode::Jmp, 0, offset)
 }
 
 ///|
@@ -175,6 +224,154 @@ pub fn Compiler::compile_stmt(
           _ => () // Ignore complex lvalues for now
         }
       }
+    @parse.Stmt::If(condition, then_block, else_block) => {
+      // Compile condition
+      let cond_reg = self.compile_expr(condition)
+
+      // Emit comparison: if condition is false, skip then block
+      // Use a true constant for comparison
+      let true_reg = self.alloc_register()
+      self.emit(
+        @opcodes.Instruction::abc(@opcodes.OpCode::LoadTrue, true_reg, 0, 0, false),
+      )
+
+      // Test if condition == true, skip if not
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Eq,
+          cond_reg,
+          true_reg,
+          0,
+          false, // k=false means skip if condition != true
+        ),
+      )
+      let then_jump = self.emit_jump() // Jump over then block if false
+
+      // Compile then block
+      self.compile_stmt(then_block)
+
+      // Handle else block
+      match else_block {
+        Some(else_stmt) => {
+          let else_jump = self.emit_jump() // Jump over else block after then
+          self.patch_jump(then_jump) // Patch to jump to else
+          self.compile_stmt(else_stmt)
+          self.patch_jump(else_jump) // Patch to jump past else
+        }
+        None => self.patch_jump(then_jump) // No else, just patch to end
+      }
+    }
+    @parse.Stmt::While(condition, body) => {
+      // Save loop start position
+      let loop_start = self.current_pc()
+
+      // Compile condition
+      let cond_reg = self.compile_expr(condition)
+
+      // Use a true constant for comparison
+      let true_reg = self.alloc_register()
+      self.emit(
+        @opcodes.Instruction::abc(@opcodes.OpCode::LoadTrue, true_reg, 0, 0, false),
+      )
+
+      // If condition != true, exit loop
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Eq,
+          cond_reg,
+          true_reg,
+          0,
+          false, // Skip if false
+        ),
+      )
+      let exit_jump = self.emit_jump()
+
+      // Compile body
+      self.compile_stmt(body)
+
+      // Jump back to loop start
+      self.patch_jump_to(self.emit_jump(), loop_start)
+
+      // Patch exit jump to current position
+      self.patch_jump(exit_jump)
+    }
+    @parse.Stmt::For(var_name, start_expr, end_expr, step_expr, body) => {
+      // Numeric for loop: for var = start, end, step do body end
+      // Compile start, end, step
+      let start_reg = self.compile_expr(start_expr)
+      let end_reg = self.compile_expr(end_expr)
+      let step_reg = match step_expr {
+        Some(step) => self.compile_expr(step)
+        None => {
+          // Default step is 1
+          let reg = self.alloc_register()
+          let const_idx = self.add_constant(@value.TValue::integer(1L))
+          self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, reg, const_idx))
+          reg
+        }
+      }
+
+      // Create loop variable
+      let var_reg = self.add_local(var_name)
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Move,
+          var_reg,
+          start_reg,
+          0,
+          false,
+        ),
+      )
+
+      // Loop start
+      let loop_start = self.current_pc()
+
+      // Check if var <= end (for positive step)
+      // TODO: This is simplified, real Lua handles negative steps
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Le,
+          var_reg,
+          end_reg,
+          0,
+          true, // k=true means skip if var <= end is true (inverted logic)
+        ),
+      )
+      let exit_jump = self.emit_jump()
+
+      // Compile body
+      self.compile_stmt(body)
+
+      // Increment variable: var = var + step
+      let temp_reg = self.alloc_register()
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Add,
+          temp_reg,
+          var_reg,
+          step_reg,
+          false,
+        ),
+      )
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Move,
+          var_reg,
+          temp_reg,
+          0,
+          false,
+        ),
+      )
+
+      // Jump back to loop start
+      self.patch_jump_to(self.emit_jump(), loop_start)
+
+      // Patch exit jump
+      self.patch_jump(exit_jump)
+
+      // Pop loop variable from locals
+      // TODO: Proper scope management
+    }
     _ => () // Ignore other statements for now
   }
 }
@@ -326,6 +523,256 @@ pub fn Compiler::compile_expr(
           false,
         ),
       )
+      result_reg
+    }
+    @parse.Expr::Eq(left, right) => {
+      // For comparisons, we need to emit a comparison instruction
+      // followed by a jump, then set result to true/false
+      let left_reg = self.compile_expr(left)
+      let right_reg = self.compile_expr(right)
+      let result_reg = self.alloc_register()
+
+      // Emit comparison: skip next instruction if equal
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Eq,
+          left_reg,
+          right_reg,
+          0,
+          true, // k=true means skip if equal
+        ),
+      )
+
+      // Not equal path: set to false
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadFalse,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+
+      // Jump over the true case
+      let skip_true = self.emit_jump()
+
+      // Equal path: set to true
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadTrue,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+
+      self.patch_jump(skip_true)
+      result_reg
+    }
+    @parse.Expr::Lt(left, right) => {
+      let left_reg = self.compile_expr(left)
+      let right_reg = self.compile_expr(right)
+      let result_reg = self.alloc_register()
+
+      // Emit comparison: skip if left < right
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Lt,
+          left_reg,
+          right_reg,
+          0,
+          true, // k=true means skip if less than
+        ),
+      )
+
+      // Not less than: set to false
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadFalse,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+      let skip_true = self.emit_jump()
+
+      // Less than: set to true
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadTrue,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+
+      self.patch_jump(skip_true)
+      result_reg
+    }
+    @parse.Expr::Le(left, right) => {
+      let left_reg = self.compile_expr(left)
+      let right_reg = self.compile_expr(right)
+      let result_reg = self.alloc_register()
+
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Le,
+          left_reg,
+          right_reg,
+          0,
+          true, // k=true means skip if <=
+        ),
+      )
+
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadFalse,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+      let skip_true = self.emit_jump()
+
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadTrue,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+
+      self.patch_jump(skip_true)
+      result_reg
+    }
+    @parse.Expr::Gt(left, right) => {
+      // a > b is same as b < a
+      let left_reg = self.compile_expr(left)
+      let right_reg = self.compile_expr(right)
+      let result_reg = self.alloc_register()
+
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Lt,
+          right_reg,
+          left_reg,
+          0,
+          true,
+        ),
+      )
+
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadFalse,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+      let skip_true = self.emit_jump()
+
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadTrue,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+
+      self.patch_jump(skip_true)
+      result_reg
+    }
+    @parse.Expr::Ge(left, right) => {
+      // a >= b is same as b <= a
+      let left_reg = self.compile_expr(left)
+      let right_reg = self.compile_expr(right)
+      let result_reg = self.alloc_register()
+
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Le,
+          right_reg,
+          left_reg,
+          0,
+          true,
+        ),
+      )
+
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadFalse,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+      let skip_true = self.emit_jump()
+
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadTrue,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+
+      self.patch_jump(skip_true)
+      result_reg
+    }
+    @parse.Expr::Ne(left, right) => {
+      // a ~= b is same as not (a == b)
+      let left_reg = self.compile_expr(left)
+      let right_reg = self.compile_expr(right)
+      let result_reg = self.alloc_register()
+
+      // Emit comparison: skip if equal
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Eq,
+          left_reg,
+          right_reg,
+          0,
+          true,
+        ),
+      )
+
+      // Not equal: set to true
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadTrue,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+      let skip_false = self.emit_jump()
+
+      // Equal: set to false
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadFalse,
+          result_reg,
+          0,
+          0,
+          false,
+        ),
+      )
+
+      self.patch_jump(skip_false)
       result_reg
     }
     _ => {
