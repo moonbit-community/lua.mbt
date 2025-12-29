@@ -9,6 +9,8 @@ pub(all) suberror StateError {
   StackUnderflow
   InvalidStackIndex(index~ : Int)
   GlobalNotFound(name~ : String)
+  CallStackUnderflow
+  NoActiveFrame
 } derive(Eq, Show, ToJson)
 
 ///|

@@ -3,6 +3,25 @@
 // Manages the Lua VM state including stack, globals, and call frames
 
 ///|
+/// Call frame - tracks a function invocation
+pub struct CallFrame {
+  func : @value.FunctionValue  // The function being executed
+  base : Int  // Base stack index for this frame
+  mut pc : Int  // Program counter within this frame
+  num_results : Int  // Number of expected results
+} derive(Show)
+
+///|
+/// Create a new call frame
+pub fn CallFrame::new(
+  func : @value.FunctionValue,
+  base : Int,
+  num_results : Int,
+) -> CallFrame {
+  CallFrame::{ func, base, pc: 0, num_results }
+}
+
+///|
 /// Lua VM state
 pub struct LuaState {
   // Value stack (grows upward)
@@ -10,12 +29,15 @@ pub struct LuaState {
 
   // Global variables
   globals : Map[String, @value.TValue]
+
+  // Call stack
+  call_stack : Array[CallFrame]
 } derive(Show)
 
 ///|
 /// Create a new Lua state
 pub fn LuaState::new() -> LuaState {
-  LuaState::{ stack: [], globals: {} }
+  LuaState::{ stack: [], globals: {}, call_stack: [] }
 }
 
 ///|
@@ -120,4 +142,66 @@ pub fn LuaState::get_global(
 /// Check if a global exists
 pub fn LuaState::has_global(self : LuaState, name : String) -> Bool {
   self.globals.contains(name)
+}
+
+///|
+/// Push a new call frame onto the call stack
+pub fn LuaState::push_frame(
+  self : LuaState,
+  func : @value.FunctionValue,
+  base : Int,
+  num_results : Int,
+) -> Unit {
+  let frame = CallFrame::new(func, base, num_results)
+  self.call_stack.push(frame)
+}
+
+///|
+/// Pop the top call frame
+pub fn LuaState::pop_frame(self : LuaState) -> CallFrame raise StateError {
+  match self.call_stack.pop() {
+    Some(frame) => frame
+    None => raise StateError::CallStackUnderflow
+  }
+}
+
+///|
+/// Get the current (top) call frame
+pub fn LuaState::current_frame(self : LuaState) -> CallFrame raise StateError {
+  let len = self.call_stack.length()
+  if len > 0 {
+    self.call_stack[len - 1]
+  } else {
+    raise StateError::NoActiveFrame
+  }
+}
+
+///|
+/// Get mutable reference to current frame (for PC updates)
+pub fn LuaState::current_frame_mut(
+  self : LuaState,
+) -> CallFrame raise StateError {
+  let len = self.call_stack.length()
+  if len > 0 {
+    self.call_stack[len - 1]
+  } else {
+    raise StateError::NoActiveFrame
+  }
+}
+
+///|
+/// Get call stack depth
+pub fn LuaState::call_depth(self : LuaState) -> Int {
+  self.call_stack.length()
+}
+
+///|
+/// Update the PC of the current frame
+pub fn LuaState::update_pc(self : LuaState, new_pc : Int) -> Unit raise StateError {
+  let len = self.call_stack.length()
+  if len > 0 {
+    self.call_stack[len - 1].pc = new_pc
+  } else {
+    raise StateError::NoActiveFrame
+  }
 }

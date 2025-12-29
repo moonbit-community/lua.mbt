@@ -41,7 +41,13 @@ pub fn Proto::constant(self : Proto, index : Int) -> @value.TValue {
 }
 
 ///|
+/// Execution result - indicates what should happen after instruction
+#declaration_only
+pub type ExecutionResult
+
+///|
 /// Execute bytecode on a Lua state
+/// Now supports function calls via call stack
 #declaration_only
 pub fn execute(state : @state.LuaState, proto : Proto) -> Unit raise VMError {
   ...
@@ -49,12 +55,13 @@ pub fn execute(state : @state.LuaState, proto : Proto) -> Unit raise VMError {
 
 ///|
 /// Execute a single instruction
-/// Returns Some(offset) for jump instructions, None for sequential execution
+/// Returns ExecutionResult indicating next action
 #declaration_only
 pub fn execute_instruction(
   state : @state.LuaState,
   instr : @opcodes.Instruction,
   constants : Array[@value.TValue],
-) -> Int? raise VMError {
+  base : Int,
+) -> ExecutionResult raise VMError {
   ...
 }
