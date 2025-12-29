@@ -359,6 +359,103 @@ pub fn execute_instruction(
       execute_return(state, base + a, b)
       ExecutionResult::Return
     }
+    @opcodes.OpCode::NewTable => {
+      // NewTable: R[A] := {} (create new empty table)
+      let a = instr.get_a()
+      let table = @value.Table::new()
+      state.set(base + a + 1, @value.TValue::table(table)) catch {
+        _ =>
+          raise VMError::RuntimeError(
+            message="Invalid register write in NEWTABLE",
+          )
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::GetTable => {
+      // GetTable: R[A] := R[B][R[C]]
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let c = instr.get_c()
+
+      let table_val = state.get(base + b + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in GETTABLE")
+      }
+
+      let key_val = state.get(base + c + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in GETTABLE")
+      }
+
+      let result = match table_val {
+        @value.TValue::Table(table) =>
+          match key_val {
+            @value.TValue::Integer(i) => table.get_int(i.to_int())
+            @value.TValue::Number(n) => {
+              let i = n.to_int64()
+              if i.to_double() == n {
+                table.get_int(i.to_int())
+              } else {
+                @value.TValue::nil()
+              }
+            }
+            @value.TValue::String(s) => table.get_string(s)
+            _ => @value.TValue::nil()
+          }
+        _ =>
+          raise VMError::InvalidOperation(
+            message="Attempt to index non-table value",
+          )
+      }
+
+      state.set(base + a + 1, result) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register write in GETTABLE")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::SetTable => {
+      // SetTable: R[A][R[B]] := R[C]
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let c = instr.get_c()
+
+      let table_val = state.get(base + a + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in SETTABLE")
+      }
+
+      let key_val = state.get(base + b + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in SETTABLE")
+      }
+
+      let value_val = state.get(base + c + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in SETTABLE")
+      }
+
+      match table_val {
+        @value.TValue::Table(table) =>
+          match key_val {
+            @value.TValue::Integer(i) => table.set_int(i.to_int(), value_val)
+            @value.TValue::Number(n) => {
+              let i = n.to_int64()
+              if i.to_double() == n {
+                table.set_int(i.to_int(), value_val)
+              }
+              // Otherwise ignore (Lua would error or use hash)
+            }
+            @value.TValue::String(s) => table.set_string(s, value_val)
+            _ => ()  // Ignore invalid keys
+          }
+        _ =>
+          raise VMError::InvalidOperation(
+            message="Attempt to index non-table value",
+          )
+      }
+      ExecutionResult::Continue
+    }
     _ => raise VMError::InvalidOpcode(op=@opcodes.opcode_to_int(opcode))
   }
 }
