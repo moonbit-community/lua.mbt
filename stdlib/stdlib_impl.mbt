@@ -271,6 +271,375 @@ pub fn string_lower(s : @value.TValue) -> String raise StdlibError {
 }
 
 ///|
+/// string.find(s, pattern, init) - Find substring
+/// Simplified version: only supports plain string search
+pub fn string_find(
+  s : @value.TValue,
+  pattern : @value.TValue,
+  init? : Int,
+) -> (Int, Int) raise StdlibError {
+  match (s, pattern) {
+    (@value.TValue::String(str), @value.TValue::String(pat)) => {
+      let start_pos = match init {
+        Some(i) => if i > 0 { i - 1 } else { 0 }  // Lua 1-based to 0-based
+        None => 0
+      }
+
+      // Simple substring search (no regex patterns)
+      let str_len = str.length()
+      let pat_len = pat.length()
+
+      for i = start_pos; i <= str_len - pat_len; i = i + 1 {
+        let mut found = true
+        for j = 0; j < pat_len; j = j + 1 {
+          if str[i + j] != pat[j] {
+            found = false
+            break
+          }
+        }
+        if found {
+          return (i + 1, i + pat_len)  // Lua 1-based indices
+        }
+      }
+
+      // Not found - return (0, 0) to indicate failure
+      (0, 0)
+    }
+    _ =>
+      raise StdlibError::TypeMismatch(
+        func="string.find",
+        expected="string",
+        actual=type_(s),
+      )
+  }
+}
+
+///|
+/// string.gsub(s, pattern, repl) - Global substitution
+/// Simplified version: plain string replacement only
+pub fn string_gsub(
+  s : @value.TValue,
+  pattern : @value.TValue,
+  repl : @value.TValue,
+) -> (String, Int) raise StdlibError {
+  match (s, pattern, repl) {
+    (@value.TValue::String(str), @value.TValue::String(pat), @value.TValue::String(replacement)) => {
+      let mut result = ""
+      let mut i = 0
+      let mut count = 0
+      let str_len = str.length()
+      let pat_len = pat.length()
+
+      if pat_len == 0 {
+        return (str, 0)  // Empty pattern matches nothing
+      }
+
+      while i < str_len {
+        // Check if pattern matches at position i
+        let mut matches = true
+        if i + pat_len > str_len {
+          matches = false
+        } else {
+          for j = 0; j < pat_len; j = j + 1 {
+            if str[i + j] != pat[j] {
+              matches = false
+              break
+            }
+          }
+        }
+
+        if matches {
+          result = result + replacement
+          i = i + pat_len
+          count = count + 1
+        } else {
+          result = result + str[i].to_int().unsafe_to_char().to_string()
+          i = i + 1
+        }
+      }
+
+      (result, count)
+    }
+    _ =>
+      raise StdlibError::TypeMismatch(
+        func="string.gsub",
+        expected="string",
+        actual=type_(s),
+      )
+  }
+}
+
+///|
+/// string.format(fmt, ...) - Format string
+/// Very simplified version: only supports %s (string) and %d (integer)
+pub fn string_format(
+  fmt : @value.TValue,
+  args : Array[@value.TValue],
+) -> String raise StdlibError {
+  match fmt {
+    @value.TValue::String(format_str) => {
+      let mut result = ""
+      let mut arg_index = 0
+      let mut i = 0
+      let len = format_str.length()
+
+      while i < len {
+        if format_str[i] == 37 {  // '%' character
+          if i + 1 < len {
+            let spec = format_str[i + 1]
+            if spec == 115 {  // 's' - string
+              if arg_index < args.length() {
+                result = result + tostring(args[arg_index])
+                arg_index = arg_index + 1
+              }
+              i = i + 2
+              continue
+            } else if spec == 100 {  // 'd' - decimal integer
+              if arg_index < args.length() {
+                let val = args[arg_index].to_integer() catch {
+                  _ => raise StdlibError::TypeMismatch(
+                    func="string.format",
+                    expected="number",
+                    actual=type_(args[arg_index]),
+                  )
+                }
+                result = result + val.to_string()
+                arg_index = arg_index + 1
+              }
+              i = i + 2
+              continue
+            }
+          }
+        }
+        result = result + format_str[i].to_int().unsafe_to_char().to_string()
+        i = i + 1
+      }
+      result
+    }
+    _ =>
+      raise StdlibError::TypeMismatch(
+        func="string.format",
+        expected="string",
+        actual=type_(fmt),
+      )
+  }
+}
+
+///|
+/// Math library functions (advanced)
+
+///|
+/// math.sin(x) - Sine function
+/// Note: Simplified stub - MoonBit doesn't expose trig functions yet
+pub fn math_sin(x : @value.TValue) -> @value.TValue raise StdlibError {
+  let _num = x.to_number() catch {
+    _ =>
+      raise StdlibError::TypeMismatch(
+        func="math.sin",
+        expected="number",
+        actual=type_(x),
+      )
+  }
+  // TODO: Implement sin when MoonBit exposes math functions
+  @value.TValue::number(0.0)  // Stub
+}
+
+///|
+/// math.cos(x) - Cosine function
+/// Note: Simplified stub - MoonBit doesn't expose trig functions yet
+pub fn math_cos(x : @value.TValue) -> @value.TValue raise StdlibError {
+  let _num = x.to_number() catch {
+    _ =>
+      raise StdlibError::TypeMismatch(
+        func="math.cos",
+        expected="number",
+        actual=type_(x),
+      )
+  }
+  // TODO: Implement cos when MoonBit exposes math functions
+  @value.TValue::number(1.0)  // Stub
+}
+
+///|
+/// math.log(x, base) - Logarithm
+/// Note: Simplified stub - MoonBit doesn't expose log functions yet
+pub fn math_log(
+  x : @value.TValue,
+  base? : @value.TValue,
+) -> @value.TValue raise StdlibError {
+  let num = x.to_number() catch {
+    _ =>
+      raise StdlibError::TypeMismatch(
+        func="math.log",
+        expected="number",
+        actual=type_(x),
+      )
+  }
+
+  if num <= 0.0 {
+    raise StdlibError::InvalidArgument(
+      func="math.log",
+      arg=1,
+      message="non-positive number",
+    )
+  }
+
+  match base {
+    Some(b) => {
+      let _base_num = b.to_number() catch {
+        _ =>
+          raise StdlibError::TypeMismatch(
+            func="math.log",
+            expected="number",
+            actual=type_(b),
+          )
+      }
+      // TODO: Implement log with base when MoonBit exposes log functions
+      @value.TValue::number(1.0)  // Stub
+    }
+    None => @value.TValue::number(1.0)  // Stub - natural log (base e)
+  }
+}
+
+///|
+/// math.min(...) - Minimum value
+pub fn math_min(values : Array[@value.TValue]) -> @value.TValue raise StdlibError {
+  if values.length() == 0 {
+    raise StdlibError::InvalidArgument(
+      func="math.min",
+      arg=1,
+      message="no values provided",
+    )
+  }
+
+  let mut min_val = values[0].to_number() catch {
+    _ =>
+      raise StdlibError::TypeMismatch(
+        func="math.min",
+        expected="number",
+        actual=type_(values[0]),
+      )
+  }
+
+  for i = 1; i < values.length(); i = i + 1 {
+    let val = values[i].to_number() catch {
+      _ =>
+        raise StdlibError::TypeMismatch(
+          func="math.min",
+          expected="number",
+          actual=type_(values[i]),
+        )
+    }
+    if val < min_val {
+      min_val = val
+    }
+  }
+
+  @value.TValue::number(min_val)
+}
+
+///|
+/// math.max(...) - Maximum value
+pub fn math_max(values : Array[@value.TValue]) -> @value.TValue raise StdlibError {
+  if values.length() == 0 {
+    raise StdlibError::InvalidArgument(
+      func="math.max",
+      arg=1,
+      message="no values provided",
+    )
+  }
+
+  let mut max_val = values[0].to_number() catch {
+    _ =>
+      raise StdlibError::TypeMismatch(
+        func="math.max",
+        expected="number",
+        actual=type_(values[0]),
+      )
+  }
+
+  for i = 1; i < values.length(); i = i + 1 {
+    let val = values[i].to_number() catch {
+      _ =>
+        raise StdlibError::TypeMismatch(
+          func="math.max",
+          expected="number",
+          actual=type_(values[i]),
+        )
+    }
+    if val > max_val {
+      max_val = val
+    }
+  }
+
+  @value.TValue::number(max_val)
+}
+
+///|
+/// math.random(m, n) - Random number
+/// Simplified: uses a basic linear congruential generator
+pub fn math_random(
+  m? : @value.TValue,
+  n? : @value.TValue,
+  seed : Int,
+) -> (@value.TValue, Int) raise StdlibError {
+  // Simple LCG: next = (a * seed + c) mod m
+  let a = 1103515245
+  let c = 12345
+  let modulus = 1073741824  // 2^30 (reduced to fit in Int)
+  let next_seed = (a * seed + c) % modulus
+  let random_float = next_seed.to_double() / modulus.to_double()
+
+  match (m, n) {
+    (None, None) => {
+      // random() returns float in [0, 1)
+      (@value.TValue::number(random_float), next_seed)
+    }
+    (Some(m_val), None) => {
+      // random(m) returns integer in [1, m]
+      let m_int = m_val.to_integer() catch {
+        _ =>
+          raise StdlibError::TypeMismatch(
+            func="math.random",
+            expected="number",
+            actual=type_(m_val),
+          )
+      }
+      let result = 1L + (random_float * m_int.to_double()).to_int64()
+      (@value.TValue::integer(result), next_seed)
+    }
+    (Some(m_val), Some(n_val)) => {
+      // random(m, n) returns integer in [m, n]
+      let m_int = m_val.to_integer() catch {
+        _ =>
+          raise StdlibError::TypeMismatch(
+            func="math.random",
+            expected="number",
+            actual=type_(m_val),
+          )
+      }
+      let n_int = n_val.to_integer() catch {
+        _ =>
+          raise StdlibError::TypeMismatch(
+            func="math.random",
+            expected="number",
+            actual=type_(n_val),
+          )
+      }
+      let range = (n_int - m_int + 1L).to_double()
+      let result = m_int + (random_float * range).to_int64()
+      (@value.TValue::integer(result), next_seed)
+    }
+    _ =>
+      raise StdlibError::InvalidArgument(
+        func="math.random",
+        arg=1,
+        message="invalid arguments",
+      )
+  }
+}
+
+///|
 /// Register all standard library functions into a Lua state
 pub fn register_stdlib(state : @state.LuaState) -> Unit {
   // Register placeholder values for standard library functions
