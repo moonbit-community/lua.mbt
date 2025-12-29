@@ -2,6 +2,24 @@
 // Implementation of the tagged value system for Lua
 
 ///|
+/// Function reference - holds bytecode and constants
+/// To avoid circular dependency, we duplicate Proto structure here
+pub struct FunctionValue {
+  code : Array[@opcodes.Instruction]
+  constants : Array[TValue]
+  upvalues : Array[TValue]
+} derive(Show)
+
+///|
+/// Create a new function value
+pub fn FunctionValue::new(
+  code : Array[@opcodes.Instruction],
+  constants : Array[TValue],
+) -> FunctionValue {
+  FunctionValue::{ code, constants, upvalues: [] }
+}
+
+///|
 /// Tagged Value - internal representation
 /// This enum holds the actual Lua values with their types
 pub enum TValue {
@@ -10,8 +28,9 @@ pub enum TValue {
   Integer(Int64)
   Number(Double)
   String(String)  // String support added
-  // Table, Function, etc. will be added later
-} derive(Eq, Show)
+  Function(FunctionValue)  // Function support added
+  // Table will be added in Stage 3
+} derive(Show)
 
 ///|
 /// Create a nil value
@@ -44,6 +63,12 @@ pub fn TValue::string(value : String) -> TValue {
 }
 
 ///|
+/// Create a function value
+pub fn TValue::function(value : FunctionValue) -> TValue {
+  TValue::Function(value)
+}
+
+///|
 /// Get the type tag of a value
 pub fn TValue::type_of(self : TValue) -> LuaType {
   match self {
@@ -51,6 +76,7 @@ pub fn TValue::type_of(self : TValue) -> LuaType {
     Boolean(_) => LuaType::Boolean
     Integer(_) | Number(_) => LuaType::Number
     String(_) => LuaType::String
+    Function(_) => LuaType::Function
   }
 }
 
@@ -212,5 +238,6 @@ pub fn TValue::to_string(self : TValue) -> String {
     Integer(i) => i.to_string()
     Number(n) => n.to_string()
     String(s) => s
+    Function(_) => "function"
   }
 }
