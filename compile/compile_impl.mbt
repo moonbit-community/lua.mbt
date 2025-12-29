@@ -200,7 +200,7 @@ pub fn Compiler::compile_stmt(
       }
     }
     @parse.Stmt::Assign(lvals, rvals) =>
-      // Simplified: only handle single assignment to local variable
+      // Simplified: only handle single assignment
       if lvals.length() == 1 && rvals.length() == 1 {
         match lvals[0] {
           @parse.Expr::Name(name) => {
@@ -220,6 +220,40 @@ pub fn Compiler::compile_stmt(
                 }
               None => raise CompileError::UndefinedVariable(name~, line=0)
             }
+          }
+          @parse.Expr::Index(table_expr, index_expr) => {
+            // Table index assignment: table[index] = value
+            let table_reg = self.compile_expr(table_expr)
+            let index_reg = self.compile_expr(index_expr)
+            let value_reg = self.compile_expr(rvals[0])
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::SetTable,
+                table_reg,
+                index_reg,
+                value_reg,
+                false,
+              ),
+            )
+          }
+          @parse.Expr::Field(table_expr, field_name) => {
+            // Table field assignment: table.field = value
+            let table_reg = self.compile_expr(table_expr)
+
+            let field_reg = self.alloc_register()
+            let const_idx = self.add_constant(@value.TValue::string(field_name))
+            self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, field_reg, const_idx))
+
+            let value_reg = self.compile_expr(rvals[0])
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::SetTable,
+                table_reg,
+                field_reg,
+                value_reg,
+                false,
+              ),
+            )
           }
           _ => () // Ignore complex lvalues for now
         }
@@ -904,6 +938,91 @@ pub fn Compiler::compile_expr(
 
       // The result will be in func_reg position after call
       func_reg
+    }
+    @parse.Expr::TableConstructor(fields) => {
+      // Create new table
+      let table_reg = self.alloc_register()
+      self.emit(@opcodes.Instruction::abc(@opcodes.OpCode::NewTable, table_reg, 0, 0, false))
+
+      // Fill table with fields
+      let mut array_index = 1
+      for field in fields {
+        let (key_opt, value) = field
+        match key_opt {
+          Some(key) => {
+            // Explicit key: table[key] = value
+            let key_reg = self.compile_expr(key)
+            let value_reg = self.compile_expr(value)
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::SetTable,
+                table_reg,
+                key_reg,
+                value_reg,
+                false,
+              ),
+            )
+          }
+          None => {
+            // Array-style: table[index] = value
+            let index_reg = self.alloc_register()
+            let const_idx = self.add_constant(@value.TValue::integer(array_index.to_int64()))
+            self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, index_reg, const_idx))
+
+            let value_reg = self.compile_expr(value)
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::SetTable,
+                table_reg,
+                index_reg,
+                value_reg,
+                false,
+              ),
+            )
+            array_index = array_index + 1
+          }
+        }
+      }
+
+      table_reg
+    }
+    @parse.Expr::Index(table_expr, index_expr) => {
+      // Table indexing: table[index]
+      let table_reg = self.compile_expr(table_expr)
+      let index_reg = self.compile_expr(index_expr)
+      let result_reg = self.alloc_register()
+
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::GetTable,
+          result_reg,
+          table_reg,
+          index_reg,
+          false,
+        ),
+      )
+      result_reg
+    }
+    @parse.Expr::Field(table_expr, field_name) => {
+      // Table field access: table.field
+      // Compile as table["field"]
+      let table_reg = self.compile_expr(table_expr)
+
+      let field_reg = self.alloc_register()
+      let const_idx = self.add_constant(@value.TValue::string(field_name))
+      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, field_reg, const_idx))
+
+      let result_reg = self.alloc_register()
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::GetTable,
+          result_reg,
+          table_reg,
+          field_reg,
+          false,
+        ),
+      )
+      result_reg
     }
     _ => {
       // For unimplemented expressions, just return a nil
