@@ -376,7 +376,8 @@ pub fn Compiler::compile_stmt(
       // Compile function body in a new compiler
       let func_compiler = Compiler::new()
 
-      // Register parameters as locals
+      // Register parameters as locals (starting at register 0)
+      // Note: Recursion won't work yet - needs upvalues/closures
       for param in params {
         func_compiler.add_local(param) |> ignore
       }
@@ -405,13 +406,14 @@ pub fn Compiler::compile_stmt(
     }
     @parse.Stmt::LocalFunctionDef(name, params, is_vararg, body) => {
       // Similar to FunctionDef but creates a local immediately
-      // Register function name first (for recursion)
+      // Register function name first (for outer scope)
       let func_reg = self.add_local(name)
 
       // Compile function body
       let func_compiler = Compiler::new()
 
-      // Register parameters as locals
+      // Register parameters as locals (starting at register 0)
+      // Note: Recursion won't work yet - needs upvalues/closures
       for param in params {
         func_compiler.add_local(param) |> ignore
       }

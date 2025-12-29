@@ -466,6 +466,15 @@ fn execute_call(
       )
   }
 
+  // IMPORTANT: Advance caller's PC before pushing new frame
+  // Otherwise, when we return, we'll execute the CALL again (infinite loop)
+  let caller_frame = state.current_frame() catch {
+    _ => raise VMError::RuntimeError(message="No caller frame for PC update")
+  }
+  state.update_pc(caller_frame.pc + 1) catch {
+    _ => raise VMError::RuntimeError(message="Failed to advance caller PC")
+  }
+
   // New frame starts right after the function (at R[A+1])
   let new_base = base + a + 1
 
