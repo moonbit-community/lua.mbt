@@ -1,0 +1,56 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lua/api"
+
+import(
+  "lua/state"
+)
+
+// Values
+
+// Errors
+pub(all) suberror APIError {
+  InvalidIndex(index~ : Int)
+  TypeMismatch(expected~ : String, actual~ : String)
+  SyntaxError(message~ : String)
+  RuntimeError(message~ : String)
+}
+pub impl Eq for APIError
+pub impl Show for APIError
+pub impl ToJson for APIError
+
+// Types and methods
+pub struct LuaAPI {
+  state : @state.LuaState
+}
+pub fn LuaAPI::get_global(Self, String) -> Unit
+pub fn LuaAPI::get_top(Self) -> Int
+pub fn LuaAPI::load_string(Self, String) -> Status raise APIError
+pub fn LuaAPI::new() -> Self
+pub fn LuaAPI::pcall(Self, Int, Int) -> Status raise APIError
+pub fn LuaAPI::push_boolean(Self, Bool) -> Unit
+pub fn LuaAPI::push_nil(Self) -> Unit
+pub fn LuaAPI::push_number(Self, Double) -> Unit
+pub fn LuaAPI::push_string(Self, String) -> Unit
+pub fn LuaAPI::set_global(Self, String) -> Unit
+pub fn LuaAPI::set_top(Self, Int) -> Unit
+pub fn LuaAPI::to_boolean(Self, Int) -> Bool
+pub fn LuaAPI::to_number(Self, Int) -> Double raise APIError
+pub fn LuaAPI::to_string(Self, Int) -> String raise APIError
+pub impl Show for LuaAPI
+
+pub(all) enum Status {
+  OK
+  Yield
+  ErrRun
+  ErrSyntax
+  ErrMem
+  ErrErr
+}
+pub impl Eq for Status
+pub impl Show for Status
+pub impl ToJson for Status
+
+// Type aliases
+
+// Traits
+

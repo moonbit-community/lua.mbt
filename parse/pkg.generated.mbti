@@ -1,0 +1,86 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lua/parse"
+
+import(
+  "lua/lex"
+)
+
+// Values
+
+// Errors
+pub(all) suberror ParseError {
+  UnexpectedToken(expected~ : String, actual~ : String, line~ : Int)
+  UnexpectedEof(line~ : Int)
+  InvalidSyntax(message~ : String, line~ : Int)
+}
+pub impl Eq for ParseError
+pub impl Show for ParseError
+pub impl ToJson for ParseError
+
+// Types and methods
+pub(all) enum Expr {
+  Nil
+  Bool(Bool)
+  Number(Double)
+  String(String)
+  Vararg
+  Name(String)
+  Index(Expr, Expr)
+  Field(Expr, String)
+  Add(Expr, Expr)
+  Sub(Expr, Expr)
+  Mul(Expr, Expr)
+  Div(Expr, Expr)
+  Mod(Expr, Expr)
+  Pow(Expr, Expr)
+  Eq(Expr, Expr)
+  Ne(Expr, Expr)
+  Lt(Expr, Expr)
+  Le(Expr, Expr)
+  Gt(Expr, Expr)
+  Ge(Expr, Expr)
+  And(Expr, Expr)
+  Or(Expr, Expr)
+  Not(Expr)
+  Concat(Expr, Expr)
+  Len(Expr)
+  Call(Expr, Array[Expr])
+  TableConstructor(Array[(Expr?, Expr)])
+  Function(Array[String], Bool, Expr)
+}
+pub impl Eq for Expr
+pub impl Show for Expr
+pub impl ToJson for Expr
+
+pub struct Parser {
+  lexer : @lex.Lexer
+}
+pub fn Parser::new(@lex.Lexer) -> Self
+pub fn Parser::parse_chunk(Self) -> Stmt raise ParseError
+pub fn Parser::parse_expr(Self) -> Expr raise ParseError
+pub fn Parser::parse_stmt(Self) -> Stmt raise ParseError
+pub impl Show for Parser
+
+pub(all) enum Stmt {
+  Block(Array[Stmt])
+  Assign(Array[Expr], Array[Expr])
+  LocalDecl(Array[String], Array[Expr])
+  FunctionCall(Expr, Array[Expr])
+  Return(Array[Expr])
+  Break
+  If(Expr, Stmt, Stmt?)
+  While(Expr, Stmt)
+  Repeat(Stmt, Expr)
+  For(String, Expr, Expr, Expr?, Stmt)
+  ForIn(Array[String], Array[Expr], Stmt)
+  FunctionDef(String, Array[String], Bool, Stmt)
+  LocalFunctionDef(String, Array[String], Bool, Stmt)
+}
+pub impl Eq for Stmt
+pub impl Show for Stmt
+pub impl ToJson for Stmt
+
+// Type aliases
+
+// Traits
+

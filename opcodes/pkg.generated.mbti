@@ -1,0 +1,85 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lua/opcodes"
+
+// Values
+pub fn op_mode(OpCode) -> OpMode
+
+pub fn opcode_to_int(OpCode) -> Int
+
+// Errors
+
+// Types and methods
+pub struct Instruction {
+  bits : UInt
+}
+pub fn Instruction::abc(OpCode, Int, Int, Int, Bool) -> Self
+pub fn Instruction::abx(OpCode, Int, Int) -> Self
+pub fn Instruction::asbx(OpCode, Int, Int) -> Self
+pub fn Instruction::ax(OpCode, Int) -> Self
+pub fn Instruction::get_a(Self) -> Int
+pub fn Instruction::get_ax(Self) -> Int
+pub fn Instruction::get_b(Self) -> Int
+pub fn Instruction::get_bx(Self) -> Int
+pub fn Instruction::get_c(Self) -> Int
+pub fn Instruction::get_k(Self) -> Bool
+pub fn Instruction::get_opcode(Self) -> OpCode
+pub fn Instruction::get_sbx(Self) -> Int
+pub fn Instruction::get_sj(Self) -> Int
+pub fn Instruction::sj(OpCode, Int) -> Self
+pub impl Eq for Instruction
+pub impl Show for Instruction
+
+pub(all) enum OpCode {
+  Move
+  LoadK
+  LoadKX
+  LoadFalse
+  LoadTrue
+  LoadNil
+  Add
+  Sub
+  Mul
+  Div
+  Mod
+  Pow
+  Unm
+  BNot
+  BAnd
+  BOr
+  BXor
+  Shl
+  Shr
+  Eq
+  Lt
+  Le
+  Not
+  Jmp
+  Return
+  Call
+  NewTable
+  GetTable
+  SetTable
+  Closure
+  GetUpval
+  SetUpval
+}
+pub impl Eq for OpCode
+pub impl Show for OpCode
+pub impl ToJson for OpCode
+
+pub(all) enum OpMode {
+  ABC
+  VABC
+  ABx
+  AsBx
+  Ax
+  SJ
+}
+pub impl Eq for OpMode
+pub impl Show for OpMode
+pub impl ToJson for OpMode
+
+// Type aliases
+
+// Traits
+

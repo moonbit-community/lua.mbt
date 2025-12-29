@@ -1,0 +1,63 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lua/value"
+
+// Values
+
+// Errors
+pub(all) suberror ValueError {
+  TypeMismatch(expected~ : LuaType, actual~ : LuaType)
+  InvalidConversion(from~ : LuaType, to~ : LuaType)
+  NilValue
+}
+pub impl Eq for ValueError
+pub impl Show for ValueError
+pub impl ToJson for ValueError
+
+// Types and methods
+pub(all) enum LuaType {
+  Nil
+  Boolean
+  LightUserdata
+  Number
+  String
+  Table
+  Function
+  Userdata
+  Thread
+}
+pub impl Eq for LuaType
+pub impl Show for LuaType
+pub impl ToJson for LuaType
+
+pub enum TValue {
+  Nil
+  Boolean(Bool)
+  Integer(Int64)
+  Number(Double)
+  String(String)
+}
+pub fn TValue::boolean(Bool) -> Self
+pub fn TValue::equal(Self, Self) -> Bool
+pub fn TValue::integer(Int64) -> Self
+pub fn TValue::is_boolean(Self) -> Bool
+pub fn TValue::is_integer(Self) -> Bool
+pub fn TValue::is_nil(Self) -> Bool
+pub fn TValue::is_number(Self) -> Bool
+pub fn TValue::is_string(Self) -> Bool
+pub fn TValue::less_equal(Self, Self) -> Bool raise ValueError
+pub fn TValue::less_than(Self, Self) -> Bool raise ValueError
+pub fn TValue::nil() -> Self
+pub fn TValue::number(Double) -> Self
+pub fn TValue::string(String) -> Self
+pub fn TValue::to_boolean(Self) -> Bool
+pub fn TValue::to_integer(Self) -> Int64 raise ValueError
+pub fn TValue::to_number(Self) -> Double raise ValueError
+pub fn TValue::to_string(Self) -> String
+pub fn TValue::type_of(Self) -> LuaType
+pub impl Eq for TValue
+pub impl Show for TValue
+
+// Type aliases
+
+// Traits
+

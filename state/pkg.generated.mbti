@@ -1,0 +1,40 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lua/state"
+
+import(
+  "lua/value"
+)
+
+// Values
+
+// Errors
+pub(all) suberror StateError {
+  StackOverflow
+  StackUnderflow
+  InvalidStackIndex(index~ : Int)
+  GlobalNotFound(name~ : String)
+}
+pub impl Eq for StateError
+pub impl Show for StateError
+pub impl ToJson for StateError
+
+// Types and methods
+pub struct LuaState {
+  stack : Array[@value.TValue]
+  globals : Map[String, @value.TValue]
+}
+pub fn LuaState::get(Self, Int) -> @value.TValue raise StateError
+pub fn LuaState::get_global(Self, String) -> @value.TValue raise StateError
+pub fn LuaState::has_global(Self, String) -> Bool
+pub fn LuaState::new() -> Self
+pub fn LuaState::pop(Self) -> @value.TValue raise StateError
+pub fn LuaState::push(Self, @value.TValue) -> Unit
+pub fn LuaState::set(Self, Int, @value.TValue) -> Unit raise StateError
+pub fn LuaState::set_global(Self, String, @value.TValue) -> Unit
+pub fn LuaState::stack_size(Self) -> Int
+pub impl Show for LuaState
+
+// Type aliases
+
+// Traits
+

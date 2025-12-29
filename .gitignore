@@ -1,0 +1,20 @@
+# MoonBit build artifacts
+target/
+.mooncakes/
+
+# Claude Code
+.claude/
+
+# Reference files (Lua C source)
+refs/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

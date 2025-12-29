@@ -1,0 +1,52 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lua/stdlib"
+
+import(
+  "lua/state"
+  "lua/value"
+)
+
+// Values
+pub fn assert_(@value.TValue, message? : String) -> @value.TValue raise StdlibError
+
+pub fn math_abs(@value.TValue) -> @value.TValue raise StdlibError
+
+pub fn math_ceil(@value.TValue) -> @value.TValue raise StdlibError
+
+pub fn math_floor(@value.TValue) -> @value.TValue raise StdlibError
+
+pub fn math_sqrt(@value.TValue) -> @value.TValue raise StdlibError
+
+pub fn print(Array[@value.TValue]) -> Unit
+
+pub fn register_stdlib(@state.LuaState) -> Unit
+
+pub fn string_len(@value.TValue) -> Int raise StdlibError
+
+pub fn string_lower(@value.TValue) -> String raise StdlibError
+
+pub fn string_sub(@value.TValue, Int, j? : Int) -> String raise StdlibError
+
+pub fn string_upper(@value.TValue) -> String raise StdlibError
+
+pub fn tonumber(@value.TValue) -> @value.TValue raise StdlibError
+
+pub fn tostring(@value.TValue) -> String
+
+pub fn type_(@value.TValue) -> String
+
+// Errors
+pub(all) suberror StdlibError {
+  InvalidArgument(func~ : String, arg~ : Int, message~ : String)
+  TypeMismatch(func~ : String, expected~ : String, actual~ : String)
+}
+pub impl Eq for StdlibError
+pub impl Show for StdlibError
+pub impl ToJson for StdlibError
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

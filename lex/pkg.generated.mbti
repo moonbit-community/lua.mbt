@@ -1,0 +1,109 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lua/lex"
+
+// Values
+
+// Errors
+pub(all) suberror LexError {
+  UnexpectedChar(pos~ : Int, char~ : Char)
+  UnterminatedString(pos~ : Int)
+  InvalidNumber(pos~ : Int, text~ : String)
+  InvalidEscape(pos~ : Int, char~ : Char)
+}
+pub impl Eq for LexError
+pub impl Show for LexError
+pub impl ToJson for LexError
+
+// Types and methods
+pub struct Lexer {
+  source : String
+  mut pos : Int
+  mut line : Int
+  mut column : Int
+  mut peek : Token?
+}
+pub fn Lexer::current_column(Self) -> Int
+pub fn Lexer::current_line(Self) -> Int
+pub fn Lexer::is_eof(Self) -> Bool
+pub fn Lexer::new(String) -> Self
+pub fn Lexer::next_token(Self) -> Token raise LexError
+pub fn Lexer::peek_token(Self) -> Token raise LexError
+pub impl Show for Lexer
+
+pub(all) struct Token {
+  type_ : TokenType
+  lexeme : String
+  line : Int
+  column : Int
+}
+pub impl Eq for Token
+pub impl Show for Token
+pub impl ToJson for Token
+
+pub(all) enum TokenType {
+  TkNumber
+  TkString
+  TkName
+  TkAnd
+  TkBreak
+  TkDo
+  TkElse
+  TkElseif
+  TkEnd
+  TkFalse
+  TkFor
+  TkFunction
+  TkGoto
+  TkIf
+  TkIn
+  TkLocal
+  TkNil
+  TkNot
+  TkOr
+  TkRepeat
+  TkReturn
+  TkThen
+  TkTrue
+  TkUntil
+  TkWhile
+  TkPlus
+  TkMinus
+  TkMul
+  TkDiv
+  TkMod
+  TkPow
+  TkLen
+  TkBitAnd
+  TkBitOr
+  TkBitXor
+  TkShl
+  TkShr
+  TkConcat
+  TkDots
+  TkEq
+  TkNe
+  TkLe
+  TkGe
+  TkLt
+  TkGt
+  TkAssign
+  TkLparen
+  TkRparen
+  TkLbrace
+  TkRbrace
+  TkLbracket
+  TkRbracket
+  TkSemicolon
+  TkColon
+  TkComma
+  TkDot
+  TkEof
+}
+pub impl Eq for TokenType
+pub impl Show for TokenType
+pub impl ToJson for TokenType
+
+// Type aliases
+
+// Traits
+

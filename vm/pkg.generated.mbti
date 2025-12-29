@@ -1,0 +1,39 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lua/vm"
+
+import(
+  "lua/opcodes"
+  "lua/state"
+  "lua/value"
+)
+
+// Values
+pub fn execute(@state.LuaState, Proto) -> Unit raise VMError
+
+pub fn execute_instruction(@state.LuaState, @opcodes.Instruction, Array[@value.TValue]) -> Unit raise VMError
+
+// Errors
+pub(all) suberror VMError {
+  InvalidOpcode(op~ : Int)
+  DivisionByZero
+  InvalidOperation(message~ : String)
+  RuntimeError(message~ : String)
+}
+pub impl Eq for VMError
+pub impl Show for VMError
+pub impl ToJson for VMError
+
+// Types and methods
+pub struct Proto {
+  code : Array[@opcodes.Instruction]
+  constants : Array[@value.TValue]
+}
+pub fn Proto::code(Self) -> Array[@opcodes.Instruction]
+pub fn Proto::constant(Self, Int) -> @value.TValue
+pub fn Proto::new(Array[@opcodes.Instruction], Array[@value.TValue]) -> Self
+pub impl Show for Proto
+
+// Type aliases
+
+// Traits
+

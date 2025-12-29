@@ -1,0 +1,44 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lua/compile"
+
+import(
+  "lua/opcodes"
+  "lua/parse"
+  "lua/value"
+  "lua/vm"
+)
+
+// Values
+pub fn compile(@parse.Stmt) -> @vm.Proto raise CompileError
+
+// Errors
+pub(all) suberror CompileError {
+  TooManyLocals(line~ : Int)
+  TooManyConstants(line~ : Int)
+  InvalidJumpTarget(line~ : Int)
+  UndefinedVariable(name~ : String, line~ : Int)
+}
+pub impl Eq for CompileError
+pub impl Show for CompileError
+pub impl ToJson for CompileError
+
+// Types and methods
+pub struct Compiler {
+  code : Array[@opcodes.Instruction]
+  constants : Array[@value.TValue]
+  locals : Array[LocalVar]
+  mut next_register : Int
+}
+pub fn Compiler::compile_expr(Self, @parse.Expr) -> Int raise CompileError
+pub fn Compiler::compile_stmt(Self, @parse.Stmt) -> Unit raise CompileError
+pub fn Compiler::finish(Self) -> @vm.Proto
+pub fn Compiler::new() -> Self
+pub impl Show for Compiler
+
+type LocalVar
+pub impl Show for LocalVar
+
+// Type aliases
+
+// Traits
+

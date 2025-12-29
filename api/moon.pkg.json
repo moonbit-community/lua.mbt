@@ -1,0 +1,11 @@
+{
+  "import": [
+    "lua/state",
+    "lua/value",
+    "lua/lex",
+    "lua/parse",
+    "lua/compile",
+    "lua/vm",
+    "lua/stdlib"
+  ]
+}

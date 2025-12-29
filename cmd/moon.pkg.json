@@ -1,0 +1,9 @@
+{
+  "is_main": true,
+  "import": [
+    "TheWaWaR/clap",
+    "moonbitlang/x/sys",
+    "moonbitlang/x/fs",
+    "lua/api"
+  ]
+}
