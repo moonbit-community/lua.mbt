@@ -21,6 +21,7 @@ pub fn type_(value : @value.TValue) -> String {
     @value.TValue::Integer(_) | @value.TValue::Number(_) => "number"
     @value.TValue::String(_) => "string"
     @value.TValue::Function(_) => "function"
+    @value.TValue::Table(_) => "table"
   }
 }
 

@@ -20,6 +20,63 @@ pub fn FunctionValue::new(
 }
 
 ///|
+/// Table - Lua's associative array (array + hash)
+/// Uses array for integer keys 1..n and hash for other keys
+pub struct Table {
+  array : Array[TValue]  // Array part for integer keys
+  hash : Map[String, TValue]  // Hash part for string keys
+} derive(Show)
+
+///|
+/// Create a new empty table
+pub fn Table::new() -> Table {
+  Table::{ array: [], hash: {} }
+}
+
+///|
+/// Get value from table by integer index (1-based)
+pub fn Table::get_int(self : Table, index : Int) -> TValue {
+  if index >= 1 && index <= self.array.length() {
+    self.array[index - 1]
+  } else {
+    TValue::nil()
+  }
+}
+
+///|
+/// Set value in table by integer index (1-based)
+pub fn Table::set_int(self : Table, index : Int, value : TValue) -> Unit {
+  if index >= 1 {
+    // Extend array if needed
+    while self.array.length() < index {
+      self.array.push(TValue::nil())
+    }
+    self.array[index - 1] = value
+  }
+}
+
+///|
+/// Get value from table by string key
+pub fn Table::get_string(self : Table, key : String) -> TValue {
+  match self.hash.get(key) {
+    Some(v) => v
+    None => TValue::nil()
+  }
+}
+
+///|
+/// Set value in table by string key
+pub fn Table::set_string(self : Table, key : String, value : TValue) -> Unit {
+  self.hash[key] = value
+}
+
+///|
+/// Get table length (array part only)
+pub fn Table::length(self : Table) -> Int {
+  self.array.length()
+}
+
+///|
 /// Tagged Value - internal representation
 /// This enum holds the actual Lua values with their types
 pub enum TValue {
@@ -27,9 +84,9 @@ pub enum TValue {
   Boolean(Bool)
   Integer(Int64)
   Number(Double)
-  String(String)  // String support added
-  Function(FunctionValue)  // Function support added
-  // Table will be added in Stage 3
+  String(String)
+  Function(FunctionValue)
+  Table(Table)  // Table support added
 } derive(Show)
 
 ///|
@@ -69,6 +126,12 @@ pub fn TValue::function(value : FunctionValue) -> TValue {
 }
 
 ///|
+/// Create a table value
+pub fn TValue::table(value : Table) -> TValue {
+  TValue::Table(value)
+}
+
+///|
 /// Get the type tag of a value
 pub fn TValue::type_of(self : TValue) -> LuaType {
   match self {
@@ -77,6 +140,7 @@ pub fn TValue::type_of(self : TValue) -> LuaType {
     Integer(_) | Number(_) => LuaType::Number
     String(_) => LuaType::String
     Function(_) => LuaType::Function
+    Table(_) => LuaType::Table
   }
 }
 
@@ -121,6 +185,15 @@ pub fn TValue::is_integer(self : TValue) -> Bool {
 pub fn TValue::is_string(self : TValue) -> Bool {
   match self {
     String(_) => true
+    _ => false
+  }
+}
+
+///|
+/// Check if value is a table
+pub fn TValue::is_table(self : TValue) -> Bool {
+  match self {
+    Table(_) => true
     _ => false
   }
 }
@@ -185,6 +258,9 @@ pub fn TValue::equal(self : TValue, other : TValue) -> Bool {
     // Integer and Number can be equal if they represent the same value
     (Integer(a), Number(b)) | (Number(b), Integer(a)) => a.to_double() == b
     (String(a), String(b)) => a == b
+    // Tables are compared by reference (identity)
+    // For now, tables are never equal unless they're the same instance
+    // Full Lua would use reference equality
     _ => false
   }
 }
@@ -239,5 +315,6 @@ pub fn TValue::to_string(self : TValue) -> String {
     Number(n) => n.to_string()
     String(s) => s
     Function(_) => "function"
+    Table(_) => "table"
   }
 }
