@@ -218,7 +218,17 @@ pub fn Compiler::compile_stmt(
                     ),
                   )
                 }
-              None => raise CompileError::UndefinedVariable(name~, line=0)
+              None => {
+                // Not a local variable, treat as global assignment
+                let name_const_idx = self.add_constant(@value.TValue::string(name))
+                self.emit(
+                  @opcodes.Instruction::abx(
+                    @opcodes.OpCode::SetGlobal,
+                    value_reg,
+                    name_const_idx,
+                  ),
+                )
+              }
             }
           }
           @parse.Expr::Index(table_expr, index_expr) => {
@@ -331,10 +341,10 @@ pub fn Compiler::compile_stmt(
     }
     @parse.Stmt::For(var_name, start_expr, end_expr, step_expr, body) => {
       // Numeric for loop: for var = start, end, step do body end
-      // Compile start, end, step
+      // Compile start, end, step expressions
       let start_reg = self.compile_expr(start_expr)
-      let end_reg = self.compile_expr(end_expr)
-      let step_reg = match step_expr {
+      let end_expr_reg = self.compile_expr(end_expr)
+      let step_expr_reg = match step_expr {
         Some(step) => self.compile_expr(step)
         None => {
           // Default step is 1
@@ -344,6 +354,31 @@ pub fn Compiler::compile_stmt(
           reg
         }
       }
+
+      // CRITICAL: Create hidden local variables to preserve end and step
+      // Without this, these temporary registers can be overwritten when
+      // the loop body allocates new registers (e.g., for table operations)
+      let end_reg = self.add_local("(for limit)")
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Move,
+          end_reg,
+          end_expr_reg,
+          0,
+          false,
+        ),
+      )
+
+      let step_reg = self.add_local("(for step)")
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Move,
+          step_reg,
+          step_expr_reg,
+          0,
+          false,
+        ),
+      )
 
       // Create loop variable
       let var_reg = self.add_local(var_name)
@@ -361,14 +396,16 @@ pub fn Compiler::compile_stmt(
       let loop_start = self.current_pc()
 
       // Check if var <= end (for positive step)
-      // TODO: This is simplified, real Lua handles negative steps
+      // Now using preserved local registers that won't be overwritten
+      // For comparison instructions: Le B C K compares R[B] <= R[C]
+      // A is unused, so we pass 0
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Le,
-          var_reg,
-          end_reg,
-          0,
-          true, // k=true means skip if var <= end is true (inverted logic)
+          0, // A is unused for comparisons
+          var_reg, // B is left operand
+          end_reg, // C is right operand
+          false, // k=false means skip next if var > end
         ),
       )
       let exit_jump = self.emit_jump()
