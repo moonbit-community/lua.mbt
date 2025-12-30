@@ -325,13 +325,21 @@ pub fn execute_instruction(
     }
     @opcodes.OpCode::Le => {
       // Le: if (R[B] <= R[C]) ~= k then PC++
+      let b_reg = instr.get_b()
+      let c_reg = instr.get_c()
       let should_skip = execute_comparison(
         state,
         instr,
         base,
         fn(a, b) {
           a.less_equal(b) catch {
-            _ => raise VMError::InvalidOperation(message="LE comparison failed")
+            _ => {
+              let a_str = a.to_string()
+              let b_str = b.to_string()
+              raise VMError::InvalidOperation(
+                message="LE comparison failed: \{a_str} <= \{b_str} (regs \{b_reg} and \{c_reg}, base \{base})",
+              )
+            }
           }
         },
         "LE",
