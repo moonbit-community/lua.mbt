@@ -119,6 +119,8 @@ pub fn opcode_to_int(op : OpCode) -> Int {
     Closure => 29
     GetUpval => 30
     SetUpval => 31
+    GetGlobal => 32
+    SetGlobal => 33
   }
 }
 
@@ -158,6 +160,8 @@ fn int_to_opcode(i : Int) -> OpCode {
     29 => OpCode::Closure
     30 => OpCode::GetUpval
     31 => OpCode::SetUpval
+    32 => OpCode::GetGlobal
+    33 => OpCode::SetGlobal
     _ => OpCode::Move // Default fallback
   }
 }

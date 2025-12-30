@@ -456,6 +456,56 @@ pub fn execute_instruction(
       }
       ExecutionResult::Continue
     }
+    @opcodes.OpCode::GetGlobal => {
+      // GetGlobal: R[A] := Globals[K[Bx]]
+      let a = instr.get_a()
+      let bx = instr.get_bx()
+
+      // Get global name from constants
+      if bx < 0 || bx >= constants.length() {
+        raise VMError::RuntimeError(message="Invalid constant index in GETGLOBAL")
+      }
+
+      let name = match constants[bx] {
+        @value.TValue::String(s) => s
+        _ => raise VMError::RuntimeError(message="GETGLOBAL requires string constant")
+      }
+
+      // Get value from globals
+      let value = state.get_global(name) catch {
+        _ => raise VMError::RuntimeError(message="Failed to get global '\{name}'")
+      }
+      state.set(base + a + 1, value) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register write in GETGLOBAL")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::SetGlobal => {
+      // SetGlobal: Globals[K[Bx]] := R[A]
+      let a = instr.get_a()
+      let bx = instr.get_bx()
+
+      // Get global name from constants
+      if bx < 0 || bx >= constants.length() {
+        raise VMError::RuntimeError(message="Invalid constant index in SETGLOBAL")
+      }
+
+      let name = match constants[bx] {
+        @value.TValue::String(s) => s
+        _ => raise VMError::RuntimeError(message="SETGLOBAL requires string constant")
+      }
+
+      // Get value from register
+      let value = state.get(base + a + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in SETGLOBAL")
+      }
+
+      // Set global
+      state.set_global(name, value)
+      ExecutionResult::Continue
+    }
     _ => raise VMError::InvalidOpcode(op=@opcodes.opcode_to_int(opcode))
   }
 }

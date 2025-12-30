@@ -61,6 +61,10 @@ pub(all) enum OpCode {
   Closure // R[A] := closure(KPROTO[Bx])
   GetUpval // R[A] := UpValue[B]
   SetUpval // UpValue[B] := R[A]
+
+  // Globals
+  GetGlobal // R[A] := Globals[K[Bx]]
+  SetGlobal // Globals[K[Bx]] := R[A]
 } derive(Eq, Show, ToJson)
 
 ///|

@@ -411,7 +411,6 @@ pub fn Compiler::compile_stmt(
       let func_compiler = Compiler::new()
 
       // Register parameters as locals (starting at register 0)
-      // Note: Recursion won't work yet - needs upvalues/closures
       for param in params {
         func_compiler.add_local(param) |> ignore
       }
@@ -424,19 +423,15 @@ pub fn Compiler::compile_stmt(
       let func_value = @value.FunctionValue::new(proto.code(), proto.constants)
 
       // Add function to constants
-      let const_idx = self.add_constant(@value.TValue::function(func_value))
+      let func_const_idx = self.add_constant(@value.TValue::function(func_value))
 
-      // Create or find the local for the function name
-      let func_reg = match self.find_local(name) {
-        Some(reg) => reg
-        None => {
-          // Global function - for now, store as local
-          self.add_local(name)
-        }
-      }
+      // For global functions, emit SetGlobal instruction
+      let temp_reg = self.alloc_register()
+      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, temp_reg, func_const_idx))
 
-      // Load function from constants
-      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, const_idx))
+      // Add function name to constants for SetGlobal
+      let name_const_idx = self.add_constant(@value.TValue::string(name))
+      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::SetGlobal, temp_reg, name_const_idx))
     }
     @parse.Stmt::LocalFunctionDef(name, params, is_vararg, body) => {
       // Similar to FunctionDef but creates a local immediately
@@ -470,8 +465,26 @@ pub fn Compiler::compile_stmt(
 
       // Compile arguments and place them after function
       let arg_count = args.length()
-      for arg in args {
-        self.compile_expr(arg) |> ignore
+      for i = 0; i < arg_count; i = i + 1 {
+        let arg_reg = self.compile_expr(args[i])
+        let expected_reg = func_reg + i + 1
+
+        // If argument isn't in the expected position, move it
+        if arg_reg != expected_reg {
+          self.emit(
+            @opcodes.Instruction::abc(
+              @opcodes.OpCode::Move,
+              expected_reg,
+              arg_reg,
+              0,
+              false,
+            ),
+          )
+          // Ensure next_register is past this position
+          while self.next_register <= expected_reg {
+            self.next_register = self.next_register + 1
+          }
+        }
       }
 
       // Emit CALL instruction: CALL func_reg arg_count result_count
@@ -558,7 +571,13 @@ pub fn Compiler::compile_expr(
     @parse.Expr::Name(name) =>
       match self.find_local(name) {
         Some(local_reg) => local_reg
-        None => raise CompileError::UndefinedVariable(name~, line=0)
+        None => {
+          // Not a local, try to load as global
+          let reg = self.alloc_register()
+          let name_const_idx = self.add_constant(@value.TValue::string(name))
+          self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::GetGlobal, reg, name_const_idx))
+          reg
+        }
       }
     @parse.Expr::Add(left, right) => {
       let left_reg = self.compile_expr(left)
@@ -919,10 +938,28 @@ pub fn Compiler::compile_expr(
       // Function expression
       let func_reg = self.compile_expr(func_expr)
 
-      // Compile arguments
+      // Compile arguments and ensure they're in consecutive registers after func_reg
       let arg_count = args.length()
-      for arg in args {
-        self.compile_expr(arg) |> ignore
+      for i = 0; i < arg_count; i = i + 1 {
+        let arg_reg = self.compile_expr(args[i])
+        let expected_reg = func_reg + i + 1
+
+        // If argument isn't in the expected position, move it
+        if arg_reg != expected_reg {
+          self.emit(
+            @opcodes.Instruction::abc(
+              @opcodes.OpCode::Move,
+              expected_reg,
+              arg_reg,
+              0,
+              false,
+            ),
+          )
+          // Ensure next_register is past this position
+          while self.next_register <= expected_reg {
+            self.next_register = self.next_register + 1
+          }
+        }
       }
 
       // Emit CALL instruction: function expects 1 return value
