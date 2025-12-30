@@ -325,7 +325,7 @@ pub fn Compiler::compile_stmt(
           cond_reg,
           true_reg,
           0,
-          false, // Skip if false
+          true, // k=true: skip exit jump if condition==true, i.e., continue looping
         ),
       )
       let exit_jump = self.emit_jump()

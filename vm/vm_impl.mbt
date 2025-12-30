@@ -299,7 +299,7 @@ pub fn execute_instruction(
         "EQ",
       )
       if should_skip {
-        ExecutionResult::Jump(0)
+        ExecutionResult::Jump(1)  // Skip next instruction
       } else {
         ExecutionResult::Continue
       }
@@ -318,7 +318,7 @@ pub fn execute_instruction(
         "LT",
       )
       if should_skip {
-        ExecutionResult::Jump(0)
+        ExecutionResult::Jump(1)  // Skip next instruction
       } else {
         ExecutionResult::Continue
       }
@@ -345,7 +345,7 @@ pub fn execute_instruction(
         "LE",
       )
       if should_skip {
-        ExecutionResult::Jump(0)
+        ExecutionResult::Jump(1)  // Skip next instruction
       } else {
         ExecutionResult::Continue
       }
