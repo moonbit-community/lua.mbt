@@ -7,6 +7,7 @@
 pub struct Proto {
   code : Array[@opcodes.Instruction]
   constants : Array[@value.TValue]
+  protos : Array[Proto] // Nested function prototypes
 } derive(Show)
 
 ///|
@@ -14,8 +15,9 @@ pub struct Proto {
 pub fn Proto::new(
   code : Array[@opcodes.Instruction],
   constants : Array[@value.TValue],
+  protos : Array[Proto],
 ) -> Proto {
-  Proto::{ code, constants }
+  Proto::{ code, constants, protos }
 }
 
 ///|
@@ -34,6 +36,12 @@ pub fn Proto::constant(self : Proto, index : Int) -> @value.TValue {
 /// Get all constants
 pub fn Proto::constants(self : Proto) -> Array[@value.TValue] {
   self.constants
+}
+
+///|
+/// Get nested proto at index
+pub fn Proto::proto(self : Proto, index : Int) -> Proto {
+  self.protos[index]
 }
 
 ///|
@@ -236,6 +244,22 @@ pub fn execute_instruction(
       )
       ExecutionResult::Continue
     }
+    @opcodes.OpCode::Idiv => {
+      // Idiv: R[A] := R[B] // R[C] (floor division)
+      execute_binary_arith(
+        state,
+        instr,
+        base,
+        fn(a, b) {
+          if b == 0.0 {
+            raise VMError::DivisionByZero
+          }
+          (a / b).floor()
+        },
+        "IDIV",
+      )
+      ExecutionResult::Continue
+    }
     @opcodes.OpCode::Mod => {
       // Mod: R[A] := R[B] % R[C]
       execute_binary_arith(
@@ -257,6 +281,165 @@ pub fn execute_instruction(
       execute_binary_arith(state, instr, base, fn(a, b) { a.pow(b) }, "POW")
       ExecutionResult::Continue
     }
+    @opcodes.OpCode::BAnd => {
+      // BAnd: R[A] := R[B] & R[C]
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let c = instr.get_c()
+      let val_b = state.get(base + b + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in BAND")
+      }
+      let val_c = state.get(base + c + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in BAND")
+      }
+      let num_b_double = val_b.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="BAND requires number")
+      }
+      let num_c_double = val_c.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="BAND requires number")
+      }
+      let num_b = num_b_double.to_int64()
+      let num_c = num_c_double.to_int64()
+      let result = num_b.land(num_c)
+      state.set(base + a + 1, @value.TValue::number(result.to_double())) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register write in BAND")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::BOr => {
+      // BOr: R[A] := R[B] | R[C]
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let c = instr.get_c()
+      let val_b = state.get(base + b + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in BOR")
+      }
+      let val_c = state.get(base + c + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in BOR")
+      }
+      let num_b_double = val_b.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="BOR requires number")
+      }
+      let num_c_double = val_c.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="BOR requires number")
+      }
+      let num_b = num_b_double.to_int64()
+      let num_c = num_c_double.to_int64()
+      let result = num_b.lor(num_c)
+      state.set(base + a + 1, @value.TValue::number(result.to_double())) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register write in BOR")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::BXor => {
+      // BXor: R[A] := R[B] ~ R[C]
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let c = instr.get_c()
+      let val_b = state.get(base + b + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in BXOR")
+      }
+      let val_c = state.get(base + c + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in BXOR")
+      }
+      let num_b_double = val_b.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="BXOR requires number")
+      }
+      let num_c_double = val_c.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="BXOR requires number")
+      }
+      let num_b = num_b_double.to_int64()
+      let num_c = num_c_double.to_int64()
+      let result = num_b.lxor(num_c)
+      state.set(base + a + 1, @value.TValue::number(result.to_double())) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register write in BXOR")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::BNot => {
+      // BNot: R[A] := ~R[B]
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let val_b = state.get(base + b + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in BNOT")
+      }
+      let num_b_double = val_b.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="BNOT requires number")
+      }
+      let num_b = num_b_double.to_int64()
+      let result = num_b.lnot()
+      state.set(base + a + 1, @value.TValue::number(result.to_double())) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register write in BNOT")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::Shl => {
+      // Shl: R[A] := R[B] << R[C]
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let c = instr.get_c()
+      let val_b = state.get(base + b + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in SHL")
+      }
+      let val_c = state.get(base + c + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in SHL")
+      }
+      let num_b_double = val_b.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="SHL requires number")
+      }
+      let num_c_double = val_c.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="SHL requires number")
+      }
+      let num_b = num_b_double.to_int64()
+      let num_c = num_c_double.to_int()
+      let result = num_b.lsl(num_c)
+      state.set(base + a + 1, @value.TValue::number(result.to_double())) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register write in SHL")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::Shr => {
+      // Shr: R[A] := R[B] >> R[C]
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let c = instr.get_c()
+      let val_b = state.get(base + b + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in SHR")
+      }
+      let val_c = state.get(base + c + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in SHR")
+      }
+      let num_b_double = val_b.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="SHR requires number")
+      }
+      let num_c_double = val_c.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="SHR requires number")
+      }
+      let num_b = num_b_double.to_int64()
+      let num_c = num_c_double.to_int()
+      let result = num_b.lsr(num_c)
+      state.set(base + a + 1, @value.TValue::number(result.to_double())) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register write in SHR")
+      }
+      ExecutionResult::Continue
+    }
     @opcodes.OpCode::Unm => {
       // Unm: R[A] := -R[B]
       let a = instr.get_a()
@@ -271,6 +454,50 @@ pub fn execute_instruction(
       state.set(base + a + 1, @value.TValue::number(-num)) catch {
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in UNM")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::Concat => {
+      // Concat: R[A] := R[B].. ... ..R[C]
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let c = instr.get_c()
+
+      // Concatenate all values from R[B] to R[C]
+      let mut result = ""
+      for i = b; i <= c; i = i + 1 {
+        let val = state.get(base + i + 1) catch {
+          _ =>
+            raise VMError::RuntimeError(message="Invalid register access in CONCAT")
+        }
+        result = result + val.to_string()
+      }
+
+      state.set(base + a + 1, @value.TValue::string(result)) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register write in CONCAT")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::Len => {
+      // Len: R[A] := #R[B]
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let val_b = state.get(base + b + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in LEN")
+      }
+
+      // Get length based on type
+      let length = match val_b {
+        @value.TValue::String(s) => s.length()
+        @value.TValue::Table(t) => t.length()
+        _ => raise VMError::RuntimeError(message="attempt to get length of a \{val_b.type_of()} value")
+      }
+
+      state.set(base + a + 1, @value.TValue::number(length.to_double())) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register write in LEN")
       }
       ExecutionResult::Continue
     }
@@ -358,7 +585,6 @@ pub fn execute_instruction(
     @opcodes.OpCode::Call => {
       // Call: R[A](R[A+1], ..., R[A+B])
       execute_call(state, instr, base)
-      ExecutionResult::Call
     }
     @opcodes.OpCode::Return => {
       // Return: return R[A], ..., R[A+B-1]
@@ -592,18 +818,114 @@ fn execute_comparison(
 
   // Evaluate comparison and check against k flag
   let comparison_result = op(val_b, val_c)
-  // Skip next instruction if (comparison_result == k)
-  comparison_result == k
+  // Skip next instruction if (comparison_result ~= k), per Lua semantics
+  comparison_result != k
+}
+
+///|
+/// Execute a native function call
+fn execute_native_call(
+  state : @state.LuaState,
+  func_name : String,
+  a : Int,
+  b : Int,
+  _c : Int,
+  base : Int,
+) -> Unit raise VMError {
+  // Collect arguments from stack starting at R[A+1]
+  // b-1 is the number of arguments (b=1 means 0 args, b=2 means 1 arg, etc.)
+  let nargs = if b == 0 {
+    // Variable number of arguments - use all values from R[A+1] to top
+    state.stack_size() - (base + a + 2)
+  } else {
+    b - 1
+  }
+
+  let args : Array[@value.TValue] = []
+  for i = 0; i < nargs; i = i + 1 {
+    // Arguments start at R[A+1], which is base + a + 1 + 1 (since function is at base + a + 1)
+    let arg = state.get(base + a + 2 + i) catch {
+      _ => @value.TValue::nil()
+    }
+    args.push(arg)
+  }
+
+  // Call the native function by name
+  let results = call_native_function(state, func_name, args)
+
+  // Store results starting at R[A]
+  for i = 0; i < results.length(); i = i + 1 {
+    state.set(base + a + 1 + i, results[i]) catch {
+      _ => ()  // Ignore set errors for now
+    }
+  }
+}
+
+///|
+/// Call a native function by name
+fn call_native_function(
+  state : @state.LuaState,
+  name : String,
+  args : Array[@value.TValue],
+) -> Array[@value.TValue] raise VMError {
+  match name {
+    "print" => {
+      @stdlib.print(args)
+      []  // print returns no values
+    }
+    "type" => {
+      let arg = if args.length() > 0 { args[0] } else { @value.TValue::nil() }
+      let type_name = @stdlib.type_(arg)
+      [@value.TValue::string(type_name)]
+    }
+    "tostring" => {
+      let arg = if args.length() > 0 { args[0] } else { @value.TValue::nil() }
+      let str = @stdlib.tostring(arg)
+      [@value.TValue::string(str)]
+    }
+    "tonumber" => {
+      let arg = if args.length() > 0 { args[0] } else { @value.TValue::nil() }
+      try {
+        let num = @stdlib.tonumber(arg)
+        [num]
+      } catch {
+        _ => [@value.TValue::nil()]
+      }
+    }
+    "assert" => {
+      let condition = if args.length() > 0 { args[0] } else { @value.TValue::nil() }
+      let message = if args.length() > 1 {
+        match args[1] {
+          @value.TValue::String(s) => Some(s)
+          _ => None
+        }
+      } else {
+        None
+      }
+      try {
+        let result = @stdlib.assert_(condition, message?)
+        [result]
+      } catch {
+        err => raise VMError::RuntimeError(message=err.to_string())
+      }
+    }
+    _ => {
+      // Ignore set_global for now - it's used during initialization
+      ignore(state)
+      raise VMError::RuntimeError(message="Unknown native function: \{name}")
+    }
+  }
 }
 
 ///|
 /// Execute function call
 /// CALL A B C: Call function at R[A] with B arguments, expecting C results
+/// Returns ExecutionResult::Call for bytecode functions, Continue for native functions
 fn execute_call(
   state : @state.LuaState,
   instr : @opcodes.Instruction,
   base : Int,
-) -> Unit raise VMError {
+) -> ExecutionResult raise VMError {
   let a = instr.get_a()
   let b = instr.get_b()
   let c = instr.get_c()
@@ -613,38 +935,45 @@ fn execute_call(
     _ => raise VMError::RuntimeError(message="Cannot access function register")
   }
 
-  let func = match func_val {
-    @value.TValue::Function(f) => f
+  match func_val {
+    // Bytecode function - push new call frame
+    @value.TValue::Function(func) => {
+      // IMPORTANT: Advance caller's PC before pushing new frame
+      // Otherwise, when we return, we'll execute the CALL again (infinite loop)
+      let caller_frame = state.current_frame() catch {
+        _ => raise VMError::RuntimeError(message="No caller frame for PC update")
+      }
+      state.update_pc(caller_frame.pc + 1) catch {
+        _ => raise VMError::RuntimeError(message="Failed to advance caller PC")
+      }
+
+      // New frame starts right after the function (at R[A+1])
+      let new_base = base + a + 1
+
+      // Ensure stack space for new frame
+      let max_register = calculate_max_register(func.code)
+      while state.stack_size() <= new_base + max_register {
+        state.push(@value.TValue::nil())
+      }
+
+      // Copy arguments (they're already in the right place at R[A+1], R[A+2], ...)
+      // In a full implementation, we'd handle variable arguments here
+
+      // Push new call frame
+      state.push_frame(func, new_base, c) catch {
+        _ => raise VMError::RuntimeError(message="Failed to push call frame")
+      }
+      ExecutionResult::Call
+    }
+    // Native function - call directly
+    @value.TValue::NativeFunction(nfunc) => {
+      execute_native_call(state, nfunc.name, a, b, c, base)
+      ExecutionResult::Continue  // Native function executed inline, just continue
+    }
     _ =>
       raise VMError::InvalidOperation(
         message="Attempt to call non-function value",
       )
-  }
-
-  // IMPORTANT: Advance caller's PC before pushing new frame
-  // Otherwise, when we return, we'll execute the CALL again (infinite loop)
-  let caller_frame = state.current_frame() catch {
-    _ => raise VMError::RuntimeError(message="No caller frame for PC update")
-  }
-  state.update_pc(caller_frame.pc + 1) catch {
-    _ => raise VMError::RuntimeError(message="Failed to advance caller PC")
-  }
-
-  // New frame starts right after the function (at R[A+1])
-  let new_base = base + a + 1
-
-  // Ensure stack space for new frame
-  let max_register = calculate_max_register(func.code)
-  while state.stack_size() <= new_base + max_register {
-    state.push(@value.TValue::nil())
-  }
-
-  // Copy arguments (they're already in the right place at R[A+1], R[A+2], ...)
-  // In a full implementation, we'd handle variable arguments here
-
-  // Push new call frame
-  state.push_frame(func, new_base, c) catch {
-    _ => raise VMError::RuntimeError(message="Failed to push call frame")
   }
 }
 
@@ -672,8 +1001,8 @@ fn execute_return(
   }
 
   // Copy return values to caller's expected location
-  // Results go right after where the function was called
-  // For now, simplified: copy B values from start position to after function call site
+  // frame.base is the callee's base, which points to the function position in caller
+  // Results should be placed starting at the function position
   for i = 0; i < count; i = i + 1 {
     let val = state.get(start + i + 1) catch {
       _ => @value.TValue::nil()
