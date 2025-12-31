@@ -22,6 +22,7 @@ pub type Proto
 pub fn Proto::new(
   code : Array[@opcodes.Instruction],
   constants : Array[@value.TValue],
+  protos : Array[Proto],
 ) -> Proto {
   ...
 }

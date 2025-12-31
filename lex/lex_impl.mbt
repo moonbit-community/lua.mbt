@@ -299,6 +299,86 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
 }
 
 ///|
+/// Scan a long string token [[...]]
+fn Lexer::scan_long_string(self : Lexer) -> Token raise LexError {
+  let start_line = self.line
+  let start_column = self.column
+
+  // Consume first '['
+  ignore(self.advance())
+
+  // Count '=' characters for nesting level: [===[...]===]
+  let mut equals_count = 0
+  while self.current() == Some('=') {
+    equals_count = equals_count + 1
+    ignore(self.advance())
+  }
+
+  // Expect second '['
+  match self.current() {
+    Some('[') => ignore(self.advance())
+    _ => raise LexError::InvalidLongString(pos=self.pos)
+  }
+
+  // Skip first newline if present (Lua convention)
+  if self.current() == Some('\n') {
+    ignore(self.advance())
+  } else if self.current() == Some('\r') {
+    ignore(self.advance())
+    if self.current() == Some('\n') {
+      ignore(self.advance())
+    }
+  }
+
+  // Read content until closing ']' with matching '=' count
+  let content = StringBuilder::new()
+  while true {
+    match self.current() {
+      None => raise LexError::UnterminatedLongString(pos=self.pos)
+      Some(']') => {
+        // Check if this is the closing bracket
+        let save_pos = self.pos
+        let save_line = self.line
+        let save_column = self.column
+
+        ignore(self.advance()) // consume ']'
+
+        // Count '=' characters
+        let mut found_equals = 0
+        while self.current() == Some('=') && found_equals < equals_count {
+          found_equals = found_equals + 1
+          ignore(self.advance())
+        }
+
+        // Check for final ']'
+        if found_equals == equals_count && self.current() == Some(']') {
+          ignore(self.advance()) // consume final ']'
+          break  // Found closing delimiter
+        } else {
+          // False alarm, restore position and add to content
+          self.pos = save_pos
+          self.line = save_line
+          self.column = save_column
+          content.write_char(']')
+          ignore(self.advance())
+        }
+      }
+      Some(c) => {
+        content.write_char(c)
+        ignore(self.advance())
+      }
+    }
+  }
+
+  Token::{
+    type_: TokenType::TkString,
+    lexeme: content.to_string(),
+    line: start_line,
+    column: start_column,
+  }
+}
+
+///|
 /// Scan an identifier or keyword
 fn Lexer::scan_identifier(self : Lexer) -> Token {
   let start_line = self.line
@@ -379,11 +459,24 @@ fn Lexer::scan_token(self : Lexer) -> Token raise LexError {
         }
         '/' => {
           ignore(self.advance())
-          Token::{
-            type_: TokenType::TkDiv,
-            lexeme: "/",
-            line: start_line,
-            column: start_column,
+          // Check for floor division //
+          match self.current() {
+            Some('/') => {
+              ignore(self.advance())
+              Token::{
+                type_: TokenType::TkFloorDiv,
+                lexeme: "//",
+                line: start_line,
+                column: start_column,
+              }
+            }
+            _ =>
+              Token::{
+                type_: TokenType::TkDiv,
+                lexeme: "/",
+                line: start_line,
+                column: start_column,
+              }
           }
         }
         '%' => {
@@ -595,6 +688,14 @@ fn Lexer::scan_token(self : Lexer) -> Token raise LexError {
           }
         }
         '[' => {
+          // Check for long string [[...]] or [=[...]=] etc.
+          // Look ahead to see if it's '[' or '='
+          if self.pos + 1 < self.source.length() {
+            let next_char = self.source[self.pos + 1].to_int().unsafe_to_char()
+            if next_char == '[' || next_char == '=' {
+              return self.scan_long_string()
+            }
+          }
           ignore(self.advance())
           Token::{
             type_: TokenType::TkLbracket,

@@ -20,6 +20,19 @@ pub fn FunctionValue::new(
 }
 
 ///|
+/// Native function wrapper - identifies a native MoonBit function by name
+/// The actual implementation is looked up in the VM
+pub struct NativeFunctionValue {
+  name : String  // Function name for lookup (e.g., "print", "type", etc.)
+} derive(Show)
+
+///|
+/// Create a new native function value
+pub fn NativeFunctionValue::new(name : String) -> NativeFunctionValue {
+  NativeFunctionValue::{ name, }
+}
+
+///|
 /// Table - Lua's associative array (array + hash)
 /// Uses array for integer keys 1..n and hash for other keys
 pub struct Table {
@@ -86,6 +99,7 @@ pub enum TValue {
   Number(Double)
   String(String)
   Function(FunctionValue)
+  NativeFunction(NativeFunctionValue)  // Native MoonBit functions
   Table(Table)  // Table support added
 } derive(Show)
 
@@ -126,6 +140,12 @@ pub fn TValue::function(value : FunctionValue) -> TValue {
 }
 
 ///|
+/// Create a native function value
+pub fn TValue::native_function(name : String) -> TValue {
+  TValue::NativeFunction(NativeFunctionValue::new(name))
+}
+
+///|
 /// Create a table value
 pub fn TValue::table(value : Table) -> TValue {
   TValue::Table(value)
@@ -139,7 +159,7 @@ pub fn TValue::type_of(self : TValue) -> LuaType {
     Boolean(_) => LuaType::Boolean
     Integer(_) | Number(_) => LuaType::Number
     String(_) => LuaType::String
-    Function(_) => LuaType::Function
+    Function(_) | NativeFunction(_) => LuaType::Function
     Table(_) => LuaType::Table
   }
 }
@@ -314,7 +334,7 @@ pub fn TValue::to_string(self : TValue) -> String {
     Integer(i) => i.to_string()
     Number(n) => n.to_string()
     String(s) => s
-    Function(_) => "function"
+    Function(_) | NativeFunction(_) => "function"
     Table(_) => "table"
   }
 }

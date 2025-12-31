@@ -44,7 +44,7 @@ test "execute bytecode function" {
     @opcodes.Instruction::abc(@opcodes.OpCode::Add, 2, 0, 1, false),
   ]
   let constants = [@value.TValue::integer(5L), @value.TValue::integer(3L)]
-  let proto = Proto::new(code, constants)
+  let proto = Proto::new(code, constants, [])
   let state = @state.LuaState::new()
   try! execute(state, proto)
 

@@ -29,9 +29,14 @@ pub(all) enum OpCode {
   Sub // R[A] := R[B] - R[C]
   Mul // R[A] := R[B] * R[C]
   Div // R[A] := R[B] / R[C]
+  Idiv // R[A] := R[B] // R[C]
   Mod // R[A] := R[B] % R[C]
   Pow // R[A] := R[B] ^ R[C]
   Unm // R[A] := -R[B]
+
+  // String
+  Concat // R[A] := R[B].. ... ..R[C]
+  Len // R[A] := #R[B]
 
   // Bitwise
   BNot // R[A] := ~R[B]

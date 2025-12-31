@@ -29,8 +29,17 @@ pub(all) enum Expr {
   Sub(Expr, Expr)
   Mul(Expr, Expr)
   Div(Expr, Expr)
+  Idiv(Expr, Expr)
   Mod(Expr, Expr)
   Pow(Expr, Expr)
+
+  // Bitwise operations
+  BAnd(Expr, Expr) // &
+  BOr(Expr, Expr) // |
+  BXor(Expr, Expr) // ~
+  BNot(Expr) // ~expr (unary)
+  Shl(Expr, Expr) // <<
+  Shr(Expr, Expr) // >>
 
   // Comparison
   Eq(Expr, Expr)
@@ -49,8 +58,9 @@ pub(all) enum Expr {
   Concat(Expr, Expr) // ..
   Len(Expr) // #expr
   Call(Expr, Array[Expr])
+  MethodCall(Expr, String, Array[Expr]) // obj:method(args)
   TableConstructor(Array[(Expr?, Expr)]) // {[key]=value, value, ...}
-  Function(Array[String], Bool, Expr) // (params, is_vararg, body)
+  Function(Array[String], Bool, Stmt) // (params, is_vararg, body)
 } derive(Eq, Show, ToJson)
 
 ///|
@@ -60,6 +70,7 @@ pub(all) enum Stmt {
   Assign(Array[Expr], Array[Expr]) // lvalues = rvalues
   LocalDecl(Array[String], Array[Expr]) // local names = values
   FunctionCall(Expr, Array[Expr])
+  MethodCall(Expr, String, Array[Expr]) // obj, method, args
   Return(Array[Expr])
   Break
   If(Expr, Stmt, Stmt?) // condition, then_block, else_block

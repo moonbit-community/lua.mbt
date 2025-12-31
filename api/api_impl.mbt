@@ -59,6 +59,10 @@ pub fn LuaAPI::load_string(
       raise APIError::RuntimeError(
         message="Undefined variable '\{name}' at line \{line}",
       )
+    @compile.CompileError::BreakOutsideLoop(line~) =>
+      raise APIError::RuntimeError(
+        message="Break statement outside loop at line \{line}",
+      )
   }
 
   // Execute the bytecode

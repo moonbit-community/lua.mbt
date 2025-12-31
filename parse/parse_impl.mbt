@@ -3,6 +3,36 @@
 // Recursive descent parser with operator precedence
 
 ///|
+/// Parse a hexadecimal string to an integer
+fn parse_hex(hex_str : String) -> Int? {
+  let mut result = 0
+  for i = 0; i < hex_str.length(); i = i + 1 {
+    let c = hex_str[i]
+    let digit = match c {
+      '0' => 0
+      '1' => 1
+      '2' => 2
+      '3' => 3
+      '4' => 4
+      '5' => 5
+      '6' => 6
+      '7' => 7
+      '8' => 8
+      '9' => 9
+      'a' | 'A' => 10
+      'b' | 'B' => 11
+      'c' | 'C' => 12
+      'd' | 'D' => 13
+      'e' | 'E' => 14
+      'f' | 'F' => 15
+      _ => return None
+    }
+    result = result * 16 + digit
+  }
+  Some(result)
+}
+
+///|
 /// Parser state
 pub struct Parser {
   lexer : @lex.Lexer
@@ -81,9 +111,15 @@ pub fn Parser::parse_stmt(self : Parser) -> Stmt raise ParseError {
     @lex.TokenType::TkFor => self.parse_for()
     @lex.TokenType::TkFunction => self.parse_function_def()
     @lex.TokenType::TkReturn => self.parse_return()
+    @lex.TokenType::TkDo => self.parse_do()
     @lex.TokenType::TkBreak => {
       ignore(self.advance())
       Stmt::Break
+    }
+    @lex.TokenType::TkSemicolon => {
+      // Empty statement - just consume the semicolon
+      ignore(self.advance())
+      Stmt::Block([])
     }
     _ =>
       // Could be assignment or function call
@@ -106,14 +142,29 @@ fn Parser::parse_local(self : Parser) -> Stmt raise ParseError {
     return Stmt::LocalFunctionDef(name_tok.lexeme, params, is_vararg, body)
   }
 
-  // Parse name list
+  // Parse name list with optional attributes
   let names : Array[String] = []
   let name_tok = self.expect(@lex.TokenType::TkName)
   names.push(name_tok.lexeme)
+
+  // Check for attribute like <const> or <close>
+  if self.check(@lex.TokenType::TkLt) {
+    ignore(self.advance()) // consume '<'
+    ignore(self.expect(@lex.TokenType::TkName)) // attribute name (const, close, etc)
+    ignore(self.expect(@lex.TokenType::TkGt)) // consume '>'
+  }
+
   while self.check(@lex.TokenType::TkComma) {
     ignore(self.advance())
     let tok = self.expect(@lex.TokenType::TkName)
     names.push(tok.lexeme)
+
+    // Check for attribute
+    if self.check(@lex.TokenType::TkLt) {
+      ignore(self.advance()) // consume '<'
+      ignore(self.expect(@lex.TokenType::TkName)) // attribute name
+      ignore(self.expect(@lex.TokenType::TkGt)) // consume '>'
+    }
   }
 
   // Optional initialization
@@ -136,16 +187,27 @@ fn Parser::parse_if(self : Parser) -> Stmt raise ParseError {
   let cond = self.parse_expr()
   ignore(self.expect(@lex.TokenType::TkThen))
   let then_block = self.parse_block()
-  let else_block = if self.check(@lex.TokenType::TkElseif) {
-    Some(self.parse_if())
+  let else_block = self.parse_else_chain()
+  ignore(self.expect(@lex.TokenType::TkEnd))
+  Stmt::If(cond, then_block, else_block)
+}
+
+///|
+/// Parse elseif/else chain (helper for parse_if)
+fn Parser::parse_else_chain(self : Parser) -> Stmt? raise ParseError {
+  if self.check(@lex.TokenType::TkElseif) {
+    ignore(self.advance())  // Consume 'elseif'
+    let cond = self.parse_expr()
+    ignore(self.expect(@lex.TokenType::TkThen))
+    let then_block = self.parse_block()
+    let else_block = self.parse_else_chain()  // Recursive for more elseif/else
+    Some(Stmt::If(cond, then_block, else_block))
   } else if self.check(@lex.TokenType::TkElse) {
     ignore(self.advance())
     Some(self.parse_block())
   } else {
     None
   }
-  ignore(self.expect(@lex.TokenType::TkEnd))
-  Stmt::If(cond, then_block, else_block)
 }
 
 ///|
@@ -157,6 +219,15 @@ fn Parser::parse_while(self : Parser) -> Stmt raise ParseError {
   let body = self.parse_block()
   ignore(self.expect(@lex.TokenType::TkEnd))
   Stmt::While(cond, body)
+}
+
+///|
+/// Parse do-end block
+fn Parser::parse_do(self : Parser) -> Stmt raise ParseError {
+  ignore(self.expect(@lex.TokenType::TkDo))
+  let body = self.parse_block()
+  ignore(self.expect(@lex.TokenType::TkEnd))
+  body
 }
 
 ///|
@@ -216,10 +287,53 @@ fn Parser::parse_for(self : Parser) -> Stmt raise ParseError {
 fn Parser::parse_function_def(self : Parser) -> Stmt raise ParseError {
   ignore(self.expect(@lex.TokenType::TkFunction))
   let name_tok = self.expect(@lex.TokenType::TkName)
+
+  // Check if this is a method definition (function a:x(params))
+  // or a table field function (function a.b.c(params))
+  let mut table_name : String? = None
+  let mut method_name : String? = None
+  let mut final_name = name_tok.lexeme
+
+  // Handle dotted names and method syntax
+  while self.check(@lex.TokenType::TkDot) || self.check(@lex.TokenType::TkColon) {
+    if self.check(@lex.TokenType::TkColon) {
+      // Method syntax: function a:x(params)
+      ignore(self.advance())
+      let method_tok = self.expect(@lex.TokenType::TkName)
+      table_name = Some(final_name)
+      method_name = Some(method_tok.lexeme)
+      final_name = final_name + "." + method_tok.lexeme
+      break  // Colon can only appear once at the end
+    } else {
+      // Dotted name: function a.b.c(params)
+      ignore(self.advance())
+      let field_tok = self.expect(@lex.TokenType::TkName)
+      final_name = final_name + "." + field_tok.lexeme
+    }
+  }
+
+  // Parse parameters
   let (params, is_vararg) = self.parse_param_list()
+
+  // If this is a method definition, prepend 'self' to parameters
+  let final_params = match method_name {
+    Some(_) => {
+      let new_params : Array[String] = []
+      new_params.push("self")
+      for p in params {
+        new_params.push(p)
+      }
+      new_params
+    }
+    None => params
+  }
+
   let body = self.parse_block()
   ignore(self.expect(@lex.TokenType::TkEnd))
-  Stmt::FunctionDef(name_tok.lexeme, params, is_vararg, body)
+
+  // For now, we'll use FunctionDef with the full dotted name
+  // In a full implementation, this would need to be converted to an assignment
+  Stmt::FunctionDef(final_name, final_params, is_vararg, body)
 }
 
 ///|
@@ -233,7 +347,8 @@ fn Parser::parse_return(self : Parser) -> Stmt raise ParseError {
     !self.check(@lex.TokenType::TkEof) &&
     !self.check(@lex.TokenType::TkElse) &&
     !self.check(@lex.TokenType::TkElseif) &&
-    !self.check(@lex.TokenType::TkUntil) {
+    !self.check(@lex.TokenType::TkUntil) &&
+    !self.check(@lex.TokenType::TkSemicolon) {
     values.push(self.parse_expr())
     while self.check(@lex.TokenType::TkComma) {
       ignore(self.advance())
@@ -281,7 +396,13 @@ fn Parser::parse_block(self : Parser) -> Stmt raise ParseError {
       | @lex.TokenType::TkElseif
       | @lex.TokenType::TkUntil
       | @lex.TokenType::TkEof => break
-      _ => stmts.push(self.parse_stmt())
+      _ => {
+        stmts.push(self.parse_stmt())
+        // Optionally consume semicolons after statements
+        while self.check(@lex.TokenType::TkSemicolon) {
+          ignore(self.advance())
+        }
+      }
     }
   }
   Stmt::Block(stmts)
@@ -292,15 +413,20 @@ fn Parser::parse_block(self : Parser) -> Stmt raise ParseError {
 fn Parser::parse_expr_stmt(self : Parser) -> Stmt raise ParseError {
   let first = self.parse_expr()
 
+  // Check for comma (multi-value assignment: x,y = ...)
+  let lvals : Array[Expr] = [first]
+  while self.check(@lex.TokenType::TkComma) {
+    ignore(self.advance())
+    // Check if next is '=' (to avoid consuming rvalues)
+    if self.check(@lex.TokenType::TkAssign) {
+      break
+    }
+    lvals.push(self.parse_expr())
+  }
+
   // Check if it's an assignment
   if self.check(@lex.TokenType::TkAssign) {
     ignore(self.advance())
-    let lvals : Array[Expr] = [first]
-    while self.check(@lex.TokenType::TkComma) {
-      // Actually, we need to parse more lvalues before the =
-      // Let me fix this logic
-      break
-    }
     let rvals : Array[Expr] = [self.parse_expr()]
     while self.check(@lex.TokenType::TkComma) {
       ignore(self.advance())
@@ -309,9 +435,10 @@ fn Parser::parse_expr_stmt(self : Parser) -> Stmt raise ParseError {
     return Stmt::Assign(lvals, rvals)
   }
 
-  // Check if it's a function call
+  // Check if it's a function call or method call
   match first {
     Expr::Call(func, args) => Stmt::FunctionCall(func, args)
+    Expr::MethodCall(obj, method, args) => Stmt::MethodCall(obj, method, args)
     _ =>
       raise ParseError::InvalidSyntax(
         message="Expected assignment or function call",
@@ -353,32 +480,85 @@ fn Parser::parse_and(self : Parser) -> Expr raise ParseError {
 ///|
 /// Parse comparison expression
 fn Parser::parse_comparison(self : Parser) -> Expr raise ParseError {
-  let mut left = self.parse_concat()
+  let mut left = self.parse_bitor()
   while true {
     match self.peek() {
       @lex.TokenType::TkEq => {
         ignore(self.advance())
-        left = Expr::Eq(left, self.parse_concat())
+        left = Expr::Eq(left, self.parse_bitor())
       }
       @lex.TokenType::TkNe => {
         ignore(self.advance())
-        left = Expr::Ne(left, self.parse_concat())
+        left = Expr::Ne(left, self.parse_bitor())
       }
       @lex.TokenType::TkLt => {
         ignore(self.advance())
-        left = Expr::Lt(left, self.parse_concat())
+        left = Expr::Lt(left, self.parse_bitor())
       }
       @lex.TokenType::TkLe => {
         ignore(self.advance())
-        left = Expr::Le(left, self.parse_concat())
+        left = Expr::Le(left, self.parse_bitor())
       }
       @lex.TokenType::TkGt => {
         ignore(self.advance())
-        left = Expr::Gt(left, self.parse_concat())
+        left = Expr::Gt(left, self.parse_bitor())
       }
       @lex.TokenType::TkGe => {
         ignore(self.advance())
-        left = Expr::Ge(left, self.parse_concat())
+        left = Expr::Ge(left, self.parse_bitor())
+      }
+      _ => break
+    }
+  }
+  left
+}
+
+///|
+/// Parse bitwise OR expression (|)
+fn Parser::parse_bitor(self : Parser) -> Expr raise ParseError {
+  let mut left = self.parse_bitxor()
+  while self.check(@lex.TokenType::TkBitOr) {
+    ignore(self.advance())
+    left = Expr::BOr(left, self.parse_bitxor())
+  }
+  left
+}
+
+///|
+/// Parse bitwise XOR expression (~)
+fn Parser::parse_bitxor(self : Parser) -> Expr raise ParseError {
+  let mut left = self.parse_bitand()
+  while self.check(@lex.TokenType::TkBitXor) {
+    ignore(self.advance())
+    left = Expr::BXor(left, self.parse_bitand())
+  }
+  left
+}
+
+///|
+/// Parse bitwise AND expression (&)
+fn Parser::parse_bitand(self : Parser) -> Expr raise ParseError {
+  let mut left = self.parse_bitshift()
+  while self.check(@lex.TokenType::TkBitAnd) {
+    ignore(self.advance())
+    left = Expr::BAnd(left, self.parse_bitshift())
+  }
+  left
+}
+
+///|
+/// Parse bitwise shift expression (<< >>)
+fn Parser::parse_bitshift(self : Parser) -> Expr raise ParseError {
+  let mut left = self.parse_concat()
+  while true {
+    match self.peek() {
+      @lex.TokenType::TkShl => {
+        ignore(self.advance())
+        left = Expr::Shl(left, self.parse_concat())
+      }
+      @lex.TokenType::TkShr => {
+        ignore(self.advance())
+        left = Expr::Shr(left, self.parse_concat())
       }
       _ => break
     }
@@ -432,6 +612,10 @@ fn Parser::parse_multiplicative(self : Parser) -> Expr raise ParseError {
         ignore(self.advance())
         left = Expr::Div(left, self.parse_unary())
       }
+      @lex.TokenType::TkFloorDiv => {
+        ignore(self.advance())
+        left = Expr::Idiv(left, self.parse_unary())
+      }
       @lex.TokenType::TkMod => {
         ignore(self.advance())
         left = Expr::Mod(left, self.parse_unary())
@@ -459,6 +643,11 @@ fn Parser::parse_unary(self : Parser) -> Expr raise ParseError {
       // Unary minus: -expr = 0 - expr
       Expr::Sub(Expr::Number(0.0), self.parse_unary())
     }
+    @lex.TokenType::TkBitXor => {
+      ignore(self.advance())
+      // Unary bitwise NOT: ~expr
+      Expr::BNot(self.parse_unary())
+    }
     _ => self.parse_power()
   }
 }
@@ -469,7 +658,7 @@ fn Parser::parse_power(self : Parser) -> Expr raise ParseError {
   let left = self.parse_postfix()
   if self.check(@lex.TokenType::TkPow) {
     ignore(self.advance())
-    Expr::Pow(left, self.parse_power()) // Right associative
+    Expr::Pow(left, self.parse_unary()) // Right associative, allow unary on RHS
   } else {
     left
   }
@@ -495,6 +684,16 @@ fn Parser::parse_postfix(self : Parser) -> Expr raise ParseError {
         ignore(self.expect(@lex.TokenType::TkRparen))
         expr = Expr::Call(expr, args)
       }
+      @lex.TokenType::TkString => {
+        // Function call with string literal (no parens)
+        let tok = self.advance()
+        expr = Expr::Call(expr, [Expr::String(tok.lexeme)])
+      }
+      @lex.TokenType::TkLbrace => {
+        // Function call with table constructor (no parens)
+        let table = self.parse_table_constructor()
+        expr = Expr::Call(expr, [table])
+      }
       @lex.TokenType::TkLbracket => {
         // Indexing
         ignore(self.advance())
@@ -507,6 +706,22 @@ fn Parser::parse_postfix(self : Parser) -> Expr raise ParseError {
         ignore(self.advance())
         let field_tok = self.expect(@lex.TokenType::TkName)
         expr = Expr::Field(expr, field_tok.lexeme)
+      }
+      @lex.TokenType::TkColon => {
+        // Method call: obj:method(args)
+        ignore(self.advance())
+        let method_tok = self.expect(@lex.TokenType::TkName)
+        ignore(self.expect(@lex.TokenType::TkLparen))
+        let args : Array[Expr] = []
+        if !self.check(@lex.TokenType::TkRparen) {
+          args.push(self.parse_expr())
+          while self.check(@lex.TokenType::TkComma) {
+            ignore(self.advance())
+            args.push(self.parse_expr())
+          }
+        }
+        ignore(self.expect(@lex.TokenType::TkRparen))
+        expr = Expr::MethodCall(expr, method_tok.lexeme, args)
       }
       _ => break
     }
@@ -533,12 +748,25 @@ fn Parser::parse_primary(self : Parser) -> Expr raise ParseError {
     @lex.TokenType::TkNumber => {
       let tok = self.advance()
       // Parse the number
-      let num = @strconv.parse_double(tok.lexeme) catch {
-        _ =>
-          raise ParseError::InvalidSyntax(
-            message="Invalid number literal",
-            line=tok.line,
-          )
+      let num = if tok.lexeme.starts_with("0x") || tok.lexeme.starts_with("0X") {
+        // Parse hex number
+        let hex_str = tok.lexeme.substring(start=2) // Skip "0x" or "0X"
+        match parse_hex(hex_str) {
+          Some(v) => v.to_double()
+          None =>
+            raise ParseError::InvalidSyntax(
+              message="Invalid hex number literal",
+              line=tok.line,
+            )
+        }
+      } else {
+        @strconv.parse_double(tok.lexeme) catch {
+          _ =>
+            raise ParseError::InvalidSyntax(
+              message="Invalid number literal",
+              line=tok.line,
+            )
+        }
       }
       Expr::Number(num)
     }
@@ -631,9 +859,7 @@ fn Parser::parse_table_constructor(self : Parser) -> Expr raise ParseError {
 fn Parser::parse_function_expr(self : Parser) -> Expr raise ParseError {
   ignore(self.expect(@lex.TokenType::TkFunction))
   let (params, is_vararg) = self.parse_param_list()
-  ignore(self.parse_block())
+  let body = self.parse_block()
   ignore(self.expect(@lex.TokenType::TkEnd))
-  // Function body is a Stmt, but Expr::Function expects Expr
-  // For now, use Nil as placeholder for body
-  Expr::Function(params, is_vararg, Expr::Nil)
+  Expr::Function(params, is_vararg, body)
 }

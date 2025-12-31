@@ -39,6 +39,7 @@ pub(all) enum TokenType {
   TkMinus // -
   TkMul // *
   TkDiv // /
+  TkFloorDiv // //
   TkMod // %
   TkPow // ^
   TkLen // #
@@ -78,6 +79,8 @@ pub(all) suberror LexError {
   UnterminatedString(pos~ : Int)
   InvalidNumber(pos~ : Int, text~ : String)
   InvalidEscape(pos~ : Int, char~ : Char)
+  InvalidLongString(pos~ : Int)
+  UnterminatedLongString(pos~ : Int)
 } derive(Eq, Show, ToJson)
 
 ///|

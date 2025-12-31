@@ -9,6 +9,7 @@ pub(all) suberror CompileError {
   TooManyConstants(line~ : Int)
   InvalidJumpTarget(line~ : Int)
   UndefinedVariable(name~ : String, line~ : Int)
+  BreakOutsideLoop(line~ : Int)
 } derive(Eq, Show, ToJson)
 
 ///|

@@ -97,30 +97,33 @@ pub fn opcode_to_int(op : OpCode) -> Int {
     Sub => 7
     Mul => 8
     Div => 9
-    Mod => 10
-    Pow => 11
-    Unm => 12
-    BNot => 13
-    BAnd => 14
-    BOr => 15
-    BXor => 16
-    Shl => 17
-    Shr => 18
-    Eq => 19
-    Lt => 20
-    Le => 21
-    Not => 22
-    Jmp => 23
-    Return => 24
-    Call => 25
-    NewTable => 26
-    GetTable => 27
-    SetTable => 28
-    Closure => 29
-    GetUpval => 30
-    SetUpval => 31
-    GetGlobal => 32
-    SetGlobal => 33
+    Idiv => 10
+    Mod => 11
+    Pow => 12
+    Unm => 13
+    Concat => 14
+    Len => 15
+    BNot => 16
+    BAnd => 17
+    BOr => 18
+    BXor => 19
+    Shl => 20
+    Shr => 21
+    Eq => 22
+    Lt => 23
+    Le => 24
+    Not => 25
+    Jmp => 26
+    Return => 27
+    Call => 28
+    NewTable => 29
+    GetTable => 30
+    SetTable => 31
+    Closure => 32
+    GetUpval => 33
+    SetUpval => 34
+    GetGlobal => 35
+    SetGlobal => 36
   }
 }
 
@@ -138,30 +141,33 @@ fn int_to_opcode(i : Int) -> OpCode {
     7 => OpCode::Sub
     8 => OpCode::Mul
     9 => OpCode::Div
-    10 => OpCode::Mod
-    11 => OpCode::Pow
-    12 => OpCode::Unm
-    13 => OpCode::BNot
-    14 => OpCode::BAnd
-    15 => OpCode::BOr
-    16 => OpCode::BXor
-    17 => OpCode::Shl
-    18 => OpCode::Shr
-    19 => OpCode::Eq
-    20 => OpCode::Lt
-    21 => OpCode::Le
-    22 => OpCode::Not
-    23 => OpCode::Jmp
-    24 => OpCode::Return
-    25 => OpCode::Call
-    26 => OpCode::NewTable
-    27 => OpCode::GetTable
-    28 => OpCode::SetTable
-    29 => OpCode::Closure
-    30 => OpCode::GetUpval
-    31 => OpCode::SetUpval
-    32 => OpCode::GetGlobal
-    33 => OpCode::SetGlobal
+    10 => OpCode::Idiv
+    11 => OpCode::Mod
+    12 => OpCode::Pow
+    13 => OpCode::Unm
+    14 => OpCode::Concat
+    15 => OpCode::Len
+    16 => OpCode::BNot
+    17 => OpCode::BAnd
+    18 => OpCode::BOr
+    19 => OpCode::BXor
+    20 => OpCode::Shl
+    21 => OpCode::Shr
+    22 => OpCode::Eq
+    23 => OpCode::Lt
+    24 => OpCode::Le
+    25 => OpCode::Not
+    26 => OpCode::Jmp
+    27 => OpCode::Return
+    28 => OpCode::Call
+    29 => OpCode::NewTable
+    30 => OpCode::GetTable
+    31 => OpCode::SetTable
+    32 => OpCode::Closure
+    33 => OpCode::GetUpval
+    34 => OpCode::SetUpval
+    35 => OpCode::GetGlobal
+    36 => OpCode::SetGlobal
     _ => OpCode::Move // Default fallback
   }
 }
@@ -292,9 +298,11 @@ pub fn op_mode(op : OpCode) -> OpMode {
     | Sub
     | Mul
     | Div
+    | Idiv
     | Mod
     | Pow
     | Unm
+    | Concat
     | BNot
     | BAnd
     | BOr

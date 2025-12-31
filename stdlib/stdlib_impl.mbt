@@ -20,7 +20,7 @@ pub fn type_(value : @value.TValue) -> String {
     @value.TValue::Boolean(_) => "boolean"
     @value.TValue::Integer(_) | @value.TValue::Number(_) => "number"
     @value.TValue::String(_) => "string"
-    @value.TValue::Function(_) => "function"
+    @value.TValue::Function(_) | @value.TValue::NativeFunction(_) => "function"
     @value.TValue::Table(_) => "table"
   }
 }
@@ -30,13 +30,70 @@ pub fn type_(value : @value.TValue) -> String {
 pub fn tonumber(value : @value.TValue) -> @value.TValue raise StdlibError {
   match value {
     @value.TValue::Integer(_) | @value.TValue::Number(_) => value
+    @value.TValue::String(s) => {
+      // Try to parse as number (supports decimal and hex)
+      let num = if s.starts_with("0x") || s.starts_with("0X") {
+        // Parse hexadecimal
+        let hex_str = s.substring(start=2)
+        match parse_hex_string(hex_str) {
+          Some(n) => n.to_double()
+          None =>
+            raise StdlibError::InvalidArgument(
+              func="tonumber",
+              arg=1,
+              message="invalid hex number",
+            )
+        }
+      } else {
+        // Parse decimal
+        @strconv.parse_double(s) catch {
+          _ =>
+            raise StdlibError::InvalidArgument(
+              func="tonumber",
+              arg=1,
+              message="invalid number",
+            )
+        }
+      }
+      @value.TValue::number(num)
+    }
     _ =>
       raise StdlibError::TypeMismatch(
         func="tonumber",
-        expected="number",
+        expected="number or string",
         actual=type_(value),
       )
   }
+}
+
+///|
+/// Parse a hexadecimal string to an integer
+fn parse_hex_string(hex_str : String) -> Int? {
+  let mut result = 0
+  for i = 0; i < hex_str.length(); i = i + 1 {
+    let c = hex_str[i]
+    let digit = match c.to_int().unsafe_to_char() {
+      '0' => 0
+      '1' => 1
+      '2' => 2
+      '3' => 3
+      '4' => 4
+      '5' => 5
+      '6' => 6
+      '7' => 7
+      '8' => 8
+      '9' => 9
+      'a' | 'A' => 10
+      'b' | 'B' => 11
+      'c' | 'C' => 12
+      'd' | 'D' => 13
+      'e' | 'E' => 14
+      'f' | 'F' => 15
+      _ => return None
+    }
+    result = result * 16 + digit
+  }
+  Some(result)
 }
 
 ///|
@@ -642,12 +699,10 @@ pub fn math_random(
 ///|
 /// Register all standard library functions into a Lua state
 pub fn register_stdlib(state : @state.LuaState) -> Unit {
-  // Register placeholder values for standard library functions
-  // In a full implementation, these would be function values
-  // For now, just register them as nil to indicate they exist
-  state.set_global("print", @value.TValue::nil())
-  state.set_global("type", @value.TValue::nil())
-  state.set_global("tonumber", @value.TValue::nil())
-  state.set_global("tostring", @value.TValue::nil())
-  state.set_global("assert", @value.TValue::nil())
+  // Register native function values for standard library functions
+  state.set_global("print", @value.TValue::native_function("print"))
+  state.set_global("type", @value.TValue::native_function("type"))
+  state.set_global("tonumber", @value.TValue::native_function("tonumber"))
+  state.set_global("tostring", @value.TValue::native_function("tostring"))
+  state.set_global("assert", @value.TValue::native_function("assert"))
 }
