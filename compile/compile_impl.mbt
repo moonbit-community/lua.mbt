@@ -732,10 +732,46 @@ pub fn Compiler::compile_stmt(
       // Loop start
       let loop_start = self.current_pc()
 
-      // Check if var <= end (for positive step)
-      // Now using preserved local registers that won't be overwritten
-      // For comparison instructions: Le B C K compares R[B] <= R[C]
-      // A is unused, so we pass 0
+      // Check loop condition based on step direction
+      // For positive step: continue while var <= end
+      // For negative step: continue while var >= end
+
+      // Compare step with 0
+      let zero_reg = self.alloc_register()
+      let zero_const = self.add_constant(@value.TValue::integer(0L))
+      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, zero_reg, zero_const))
+
+      // Check if step < 0 (for negative step / countdown)
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Lt,
+          0, // A is unused
+          step_reg, // B is left operand
+          zero_reg, // C is right operand
+          false, // k=false: if step < 0 is true, skip next instruction
+        ),
+      )
+
+      // If step >= 0, jump to positive step handling (skip negative path)
+      let positive_step_jump = self.emit_jump()
+
+      // Negative step path: check var >= end (i.e., end <= var)
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Le,
+          0, // A is unused
+          end_reg, // B is left operand
+          var_reg, // C is right operand
+          false, // k=false means skip next if end > var (i.e., var < end, should exit)
+        ),
+      )
+      let exit_jump_neg = self.emit_jump()
+
+      // Jump over positive step check to loop body
+      let skip_positive = self.emit_jump()
+
+      // Positive step path: check var <= end
+      self.patch_jump(positive_step_jump)
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Le,
@@ -745,7 +781,10 @@ pub fn Compiler::compile_stmt(
           false, // k=false means skip next if var > end
         ),
       )
-      let exit_jump = self.emit_jump()
+      let exit_jump_pos = self.emit_jump()
+
+      // Continue with loop body
+      self.patch_jump(skip_positive)
 
       // Compile body
       self.compile_stmt(body)
@@ -774,8 +813,9 @@ pub fn Compiler::compile_stmt(
       // Jump back to loop start
       self.patch_jump_to(self.emit_jump(), loop_start)
 
-      // Patch exit jump
-      self.patch_jump(exit_jump)
+      // Patch both exit jumps (positive and negative step paths)
+      self.patch_jump(exit_jump_pos)
+      self.patch_jump(exit_jump_neg)
       self.exit_loop()
 
       // Pop loop variable from locals
