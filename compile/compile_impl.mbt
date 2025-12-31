@@ -1854,7 +1854,7 @@ pub fn Compiler::compile_expr(
       result_reg
     }
     @parse.Expr::And(left, right) => {
-      // a and b: if a is falsy, return a; else return b
+      // a and b: if a is falsy (nil or false), return a; else return b
       // Compile left operand
       let left_reg = self.compile_expr(left)
       let result_reg = self.alloc_register()
@@ -1870,28 +1870,39 @@ pub fn Compiler::compile_expr(
         ),
       )
 
-      // Test if left is true (use testset or simple comparison to true)
-      // For simplicity, compare with true
-      let true_reg = self.alloc_register()
+      // Test if left is falsy: check if (NOT left) is true
+      // If NOT left == false, then left is truthy, so evaluate right
+      let not_left_reg = self.alloc_register()
       self.emit(
-        @opcodes.Instruction::abc(@opcodes.OpCode::LoadTrue, true_reg, 0, 0, false),
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Not,
+          not_left_reg,
+          left_reg,
+          0,
+          false,
+        ),
       )
 
-      // EQ: if left == true, skip the return (evaluate right)
+      let false_reg = self.alloc_register()
+      self.emit(
+        @opcodes.Instruction::abc(@opcodes.OpCode::LoadFalse, false_reg, 0, 0, false),
+      )
+
+      // EQ: if (NOT left) == false, then left is truthy, skip jump (evaluate right)
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Eq,
           0,
-          left_reg,
-          true_reg,
-          false,  // k=false: if equal (left is true), skip next instruction
+          not_left_reg,
+          false_reg,
+          false,  // k=false: if NOT left is false (left is truthy), skip next instruction
         ),
       )
 
-      // Left is not true, jump to end (return left in result_reg)
+      // Left is falsy, jump to end (return left in result_reg)
       let skip_right = self.emit_jump()
 
-      // Left is true, evaluate right and move to result
+      // Left is truthy, evaluate right and move to result
       let right_reg = self.compile_expr(right)
       self.emit(
         @opcodes.Instruction::abc(
@@ -1907,7 +1918,7 @@ pub fn Compiler::compile_expr(
       result_reg
     }
     @parse.Expr::Or(left, right) => {
-      // a or b: if a is truthy, return a; else return b
+      // a or b: if a is truthy (not nil and not false), return a; else return b
       // Compile left operand
       let left_reg = self.compile_expr(left)
       let result_reg = self.alloc_register()
@@ -1923,27 +1934,39 @@ pub fn Compiler::compile_expr(
         ),
       )
 
-      // Test if left is true
-      let true_reg = self.alloc_register()
+      // Test if left is truthy: check if (NOT left) is false
+      // If NOT left == false, then left is truthy, return left
+      let not_left_reg = self.alloc_register()
       self.emit(
-        @opcodes.Instruction::abc(@opcodes.OpCode::LoadTrue, true_reg, 0, 0, false),
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Not,
+          not_left_reg,
+          left_reg,
+          0,
+          false,
+        ),
       )
 
-      // EQ: if left == true, skip evaluation of right (return left)
+      let false_reg = self.alloc_register()
+      self.emit(
+        @opcodes.Instruction::abc(@opcodes.OpCode::LoadFalse, false_reg, 0, 0, false),
+      )
+
+      // EQ: if (NOT left) == false, then left is truthy, skip evaluation of right
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Eq,
           0,
-          left_reg,
-          true_reg,
-          true,  // k=true: if not equal (left is not true), skip next instruction
+          not_left_reg,
+          false_reg,
+          true,  // k=true: if NOT equal (NOT left != false, i.e., left is falsy), skip next instruction
         ),
       )
 
-      // Left is true, jump to end (return left in result_reg)
+      // Left is truthy, jump to end (return left in result_reg)
       let skip_right = self.emit_jump()
 
-      // Left is not true, evaluate right and move to result
+      // Left is falsy, evaluate right and move to result
       let right_reg = self.compile_expr(right)
       self.emit(
         @opcodes.Instruction::abc(
