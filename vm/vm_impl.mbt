@@ -230,32 +230,24 @@ pub fn execute_instruction(
     }
     @opcodes.OpCode::Div => {
       // Div: R[A] := R[B] / R[C]
+      // Division by zero returns inf/-inf (IEEE 754 semantics)
       execute_binary_arith(
         state,
         instr,
         base,
-        fn(a, b) {
-          if b == 0.0 {
-            raise VMError::DivisionByZero
-          }
-          a / b
-        },
+        fn(a, b) { a / b },
         "DIV",
       )
       ExecutionResult::Continue
     }
     @opcodes.OpCode::Idiv => {
       // Idiv: R[A] := R[B] // R[C] (floor division)
+      // Division by zero returns inf/-inf (IEEE 754 semantics)
       execute_binary_arith(
         state,
         instr,
         base,
-        fn(a, b) {
-          if b == 0.0 {
-            raise VMError::DivisionByZero
-          }
-          (a / b).floor()
-        },
+        fn(a, b) { (a / b).floor() },
         "IDIV",
       )
       ExecutionResult::Continue
