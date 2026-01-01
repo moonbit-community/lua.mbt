@@ -35,15 +35,26 @@ pub fn NativeFunctionValue::new(name : String) -> NativeFunctionValue {
 ///|
 /// Table - Lua's associative array (array + hash)
 /// Uses array for integer keys 1..n and hash for other keys
+/// Each table has a unique ID for reference equality
 pub struct Table {
+  id : Int  // Unique ID for reference equality
   array : Array[TValue]  // Array part for integer keys
   hash : Map[String, TValue]  // Hash part for string keys
 } derive(Show)
 
+// Generate unique table IDs using a counter
+let table_id_counter : Ref[Int] = { val: 0 }
+
+fn next_table_id() -> Int {
+  let id = table_id_counter.val
+  table_id_counter.val = id + 1
+  id
+}
+
 ///|
-/// Create a new empty table
+/// Create a new empty table with a unique ID
 pub fn Table::new() -> Table {
-  Table::{ array: [], hash: {} }
+  Table::{ id: next_table_id(), array: [], hash: {} }
 }
 
 ///|
@@ -278,9 +289,8 @@ pub fn TValue::equal(self : TValue, other : TValue) -> Bool {
     // Integer and Number can be equal if they represent the same value
     (Integer(a), Number(b)) | (Number(b), Integer(a)) => a.to_double() == b
     (String(a), String(b)) => a == b
-    // Tables are compared by reference (identity)
-    // For now, tables are never equal unless they're the same instance
-    // Full Lua would use reference equality
+    // Tables are compared by reference (identity) using unique ID
+    (Table(a), Table(b)) => a.id == b.id
     _ => false
   }
 }
