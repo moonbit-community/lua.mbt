@@ -95,6 +95,83 @@ pub fn Table::set_string(self : Table, key : String, value : TValue) -> Unit {
 }
 
 ///|
+/// Convert a TValue to a hash key string (for non-integer, non-string keys)
+fn tvalue_to_hash_key(key : TValue) -> String? {
+  match key {
+    TValue::Boolean(b) => Some("bool:" + b.to_string())
+    TValue::Number(n) => Some("num:" + n.to_string())
+    TValue::Table(t) => Some("table:" + t.id.to_string())
+    TValue::Function(f) => Some("func:" + f.to_string())
+    TValue::NativeFunction(f) => Some("nfunc:" + f.name)
+    _ => None  // Integer and String handled separately, Nil not valid as key
+  }
+}
+
+///|
+/// Get value from table by any TValue key
+pub fn Table::get(self : Table, key : TValue) -> TValue {
+  match key {
+    TValue::Integer(i) => self.get_int(i.to_int())
+    TValue::Number(n) => {
+      // Check if it's an exact integer
+      let i = n.to_int64()
+      if i.to_double() == n {
+        self.get_int(i.to_int())
+      } else {
+        // Non-integer number, use hash
+        match tvalue_to_hash_key(key) {
+          Some(hash_key) => match self.hash.get(hash_key) {
+            Some(v) => v
+            None => TValue::nil()
+          }
+          None => TValue::nil()
+        }
+      }
+    }
+    TValue::String(s) => self.get_string(s)
+    _ => {
+      // Boolean, Table, Function, etc.
+      match tvalue_to_hash_key(key) {
+        Some(hash_key) => match self.hash.get(hash_key) {
+          Some(v) => v
+          None => TValue::nil()
+        }
+        None => TValue::nil()
+      }
+    }
+  }
+}
+
+///|
+/// Set value in table by any TValue key
+pub fn Table::set(self : Table, key : TValue, value : TValue) -> Unit {
+  match key {
+    TValue::Integer(i) => self.set_int(i.to_int(), value)
+    TValue::Number(n) => {
+      // Check if it's an exact integer
+      let i = n.to_int64()
+      if i.to_double() == n {
+        self.set_int(i.to_int(), value)
+      } else {
+        // Non-integer number, use hash
+        match tvalue_to_hash_key(key) {
+          Some(hash_key) => self.hash[hash_key] = value
+          None => ()  // Nil key is invalid
+        }
+      }
+    }
+    TValue::String(s) => self.set_string(s, value)
+    _ => {
+      // Boolean, Table, Function, etc.
+      match tvalue_to_hash_key(key) {
+        Some(hash_key) => self.hash[hash_key] = value
+        None => ()  // Nil key is invalid
+      }
+    }
+  }
+}
+
+///|
 /// Get table length (array part only)
 pub fn Table::length(self : Table) -> Int {
   self.array.length()

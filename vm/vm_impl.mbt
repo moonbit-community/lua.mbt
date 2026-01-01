@@ -632,20 +632,7 @@ pub fn execute_instruction(
       }
 
       let result = match table_val {
-        @value.TValue::Table(table) =>
-          match key_val {
-            @value.TValue::Integer(i) => table.get_int(i.to_int())
-            @value.TValue::Number(n) => {
-              let i = n.to_int64()
-              if i.to_double() == n {
-                table.get_int(i.to_int())
-              } else {
-                @value.TValue::nil()
-              }
-            }
-            @value.TValue::String(s) => table.get_string(s)
-            _ => @value.TValue::nil()
-          }
+        @value.TValue::Table(table) => table.get(key_val)
         _ =>
           raise VMError::InvalidOperation(
             message="Attempt to index non-table value",
@@ -680,19 +667,7 @@ pub fn execute_instruction(
       }
 
       match table_val {
-        @value.TValue::Table(table) =>
-          match key_val {
-            @value.TValue::Integer(i) => table.set_int(i.to_int(), value_val)
-            @value.TValue::Number(n) => {
-              let i = n.to_int64()
-              if i.to_double() == n {
-                table.set_int(i.to_int(), value_val)
-              }
-              // Otherwise ignore (Lua would error or use hash)
-            }
-            @value.TValue::String(s) => table.set_string(s, value_val)
-            _ => ()  // Ignore invalid keys
-          }
+        @value.TValue::Table(table) => table.set(key_val, value_val)
         _ =>
           raise VMError::InvalidOperation(
             message="Attempt to index non-table value",
