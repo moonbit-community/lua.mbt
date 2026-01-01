@@ -743,4 +743,16 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   table_table.set_string("unpack", @value.TValue::native_function("table.unpack"))
 
   state.set_global("table", @value.TValue::table(table_table))
+
+  // Create string library table
+  let string_table = @value.Table::new()
+  string_table.set_string("len", @value.TValue::native_function("string.len"))
+  string_table.set_string("sub", @value.TValue::native_function("string.sub"))
+  string_table.set_string("upper", @value.TValue::native_function("string.upper"))
+  string_table.set_string("lower", @value.TValue::native_function("string.lower"))
+  string_table.set_string("find", @value.TValue::native_function("string.find"))
+  string_table.set_string("gsub", @value.TValue::native_function("string.gsub"))
+  string_table.set_string("format", @value.TValue::native_function("string.format"))
+
+  state.set_global("string", @value.TValue::table(string_table))
 }

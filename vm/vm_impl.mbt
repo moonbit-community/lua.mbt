@@ -1306,6 +1306,133 @@ fn call_native_function(
       }
       result
     }
+    // String library functions
+    "string.len" => {
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="string.len requires a string argument")
+      }
+      let s = match args[0] {
+        @value.TValue::String(str) => str
+        _ => raise VMError::InvalidOperation(message="string.len requires a string")
+      }
+      [@value.TValue::number(s.length().to_double())]
+    }
+    "string.sub" => {
+      if args.length() < 2 {
+        raise VMError::InvalidOperation(message="string.sub requires at least 2 arguments")
+      }
+      let s = match args[0] {
+        @value.TValue::String(str) => str
+        _ => raise VMError::InvalidOperation(message="string.sub requires a string")
+      }
+      let i = try {
+        args[1].to_integer().to_int()
+      } catch {
+        _ => raise VMError::InvalidOperation(message="string.sub index must be a number")
+      }
+
+      // Call stdlib function with or without j parameter
+      let result = if args.length() >= 3 {
+        let j = try {
+          args[2].to_integer().to_int()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="string.sub index must be a number")
+        }
+        try {
+          @stdlib.string_sub(args[0], i, j=j)
+        } catch {
+          err => raise VMError::RuntimeError(message="string.sub failed: \{err}")
+        }
+      } else {
+        try {
+          @stdlib.string_sub(args[0], i)
+        } catch {
+          err => raise VMError::RuntimeError(message="string.sub failed: \{err}")
+        }
+      }
+      [@value.TValue::string(result)]
+    }
+    "string.upper" => {
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="string.upper requires a string argument")
+      }
+      let result = try {
+        @stdlib.string_upper(args[0])
+      } catch {
+        err => raise VMError::RuntimeError(message="string.upper failed: \{err}")
+      }
+      [@value.TValue::string(result)]
+    }
+    "string.lower" => {
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="string.lower requires a string argument")
+      }
+      let result = try {
+        @stdlib.string_lower(args[0])
+      } catch {
+        err => raise VMError::RuntimeError(message="string.lower failed: \{err}")
+      }
+      [@value.TValue::string(result)]
+    }
+    "string.find" => {
+      if args.length() < 2 {
+        raise VMError::InvalidOperation(message="string.find requires at least 2 arguments")
+      }
+
+      let (start, end) = if args.length() >= 3 {
+        let init = try {
+          args[2].to_integer().to_int()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="string.find init must be a number")
+        }
+        try {
+          @stdlib.string_find(args[0], args[1], init=init)
+        } catch {
+          err => raise VMError::RuntimeError(message="string.find failed: \{err}")
+        }
+      } else {
+        try {
+          @stdlib.string_find(args[0], args[1])
+        } catch {
+          err => raise VMError::RuntimeError(message="string.find failed: \{err}")
+        }
+      }
+
+      if start == 0 {
+        // Not found - return nil
+        [@value.TValue::nil()]
+      } else {
+        // Found - return start and end positions
+        [@value.TValue::integer(start.to_int64()), @value.TValue::integer(end.to_int64())]
+      }
+    }
+    "string.gsub" => {
+      if args.length() < 3 {
+        raise VMError::InvalidOperation(message="string.gsub requires 3 arguments")
+      }
+      let (result, count) = try {
+        @stdlib.string_gsub(args[0], args[1], args[2])
+      } catch {
+        err => raise VMError::RuntimeError(message="string.gsub failed: \{err}")
+      }
+      [@value.TValue::string(result), @value.TValue::integer(count.to_int64())]
+    }
+    "string.format" => {
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="string.format requires a format string")
+      }
+      // Collect all arguments after the format string
+      let format_args : Array[@value.TValue] = []
+      for i = 1; i < args.length(); i = i + 1 {
+        format_args.push(args[i])
+      }
+      let result = try {
+        @stdlib.string_format(args[0], format_args)
+      } catch {
+        err => raise VMError::RuntimeError(message="string.format failed: \{err}")
+      }
+      [@value.TValue::string(result)]
+    }
     _ => {
       // Ignore set_global for now - it's used during initialization
       ignore(state)
