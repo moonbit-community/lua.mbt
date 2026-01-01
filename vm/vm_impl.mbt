@@ -1013,9 +1013,20 @@ fn execute_return(
   // Copy return values to caller's expected location
   // frame.base is the callee's base, which points to the function position in caller
   // Results should be placed starting at the function position
-  for i = 0; i < count; i = i + 1 {
-    let val = state.get(start + i + 1) catch {
-      _ => @value.TValue::nil()
+
+  // In Lua, a function always returns at least one value
+  // If count=0 (no explicit return values), return nil
+  let actual_count = if count == 0 { 1 } else { count }
+
+  for i = 0; i < actual_count; i = i + 1 {
+    let val = if i < count {
+      // Explicit return value exists
+      state.get(start + i + 1) catch {
+        _ => @value.TValue::nil()
+      }
+    } else {
+      // No more return values, use nil
+      @value.TValue::nil()
     }
     // Results are placed starting at the function position in caller
     state.set(frame.base + i, val) catch {
