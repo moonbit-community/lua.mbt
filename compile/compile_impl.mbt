@@ -1094,6 +1094,235 @@ pub fn Compiler::compile_stmt(
         ),
       )
     }
+    @parse.Stmt::ForIn(names, exprs, body) => {
+      // Generic for loop: for var1, var2, ... in expr1, expr2, ... do body end
+      //
+      // Lua's generic for protocol:
+      //   local iter, state, init = exprs[0], exprs[1], exprs[2]
+      //   local var1, var2, ...
+      //   while true do
+      //     var1, var2, ... = iter(state, init)
+      //     if var1 == nil then break end
+      //     init = var1
+      //     -- body
+      //   end
+
+      // Create hidden local variables for iterator state FIRST
+      // These need to be locals to survive across loop iterations
+      let f_reg = self.add_local("(for iterator)")  // iterator function
+      let s_reg = self.add_local("(for state)")     // invariant state
+      let var_reg = self.add_local("(for control)") // control variable
+
+      // Evaluate iterator expression (typically pairs(t) or ipairs(t))
+      // We need to get 3 return values, so we can't use compile_expr
+      // Instead, compile it as a function call with 3 expected results
+      if exprs.length() > 0 {
+        match exprs[0] {
+          @parse.Expr::Call(func_expr, args) => {
+            // Compile the function call manually to get 3 results
+            let func_reg = self.compile_expr(func_expr)
+
+            // Compile arguments
+            for i = 0; i < args.length(); i = i + 1 {
+              let arg_reg = self.compile_expr(args[i])
+              let expected_reg = func_reg + i + 1
+
+              if arg_reg != expected_reg {
+                self.emit(
+                  @opcodes.Instruction::abc(
+                    @opcodes.OpCode::Move,
+                    expected_reg,
+                    arg_reg,
+                    0,
+                    false,
+                  ),
+                )
+                while self.next_register <= expected_reg {
+                  self.next_register = self.next_register + 1
+                }
+              }
+            }
+
+            // CALL with 3 expected results (C = 4 means 3 results)
+            // Results will be at func_reg, func_reg+1, func_reg+2
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::Call,
+                func_reg,
+                args.length() + 1, // B = nargs + 1
+                4, // C = 4 means 3 results (iter, state, control)
+                false,
+              ),
+            )
+
+            // Move results to hidden locals
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::Move,
+                f_reg,
+                func_reg,
+                0,
+                false,
+              ),
+            )
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::Move,
+                s_reg,
+                func_reg + 1,
+                0,
+                false,
+              ),
+            )
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::Move,
+                var_reg,
+                func_reg + 2,
+                0,
+                false,
+              ),
+            )
+          }
+          _ => {
+            // Fall back to simple expression compilation
+            let iter_reg = self.compile_expr(exprs[0])
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::Move,
+                f_reg,
+                iter_reg,
+                0,
+                false,
+              ),
+            )
+            // Initialize state and control to nil
+            let nil_const = self.add_constant(@value.TValue::nil())
+            self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, s_reg, nil_const))
+            self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, var_reg, nil_const))
+          }
+        }
+      } else {
+        // No iterator expression - shouldn't happen, but handle it
+        let nil_const = self.add_constant(@value.TValue::nil())
+        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, f_reg, nil_const))
+        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, s_reg, nil_const))
+        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, var_reg, nil_const))
+      }
+
+      // Create loop variables as locals
+      let var_regs : Array[Int] = []
+      for name in names {
+        let reg = self.add_local(name)
+        var_regs.push(reg)
+      }
+
+      self.enter_loop()
+
+      // Loop start
+      let loop_start = self.current_pc()
+
+      // Call iterator: var1, var2, ... = f(s, var)
+      // Set up call: f is at f_reg, args are s_reg and var_reg
+      // We need to move s and var after f for the call
+      let call_base = self.alloc_register()
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Move,
+          call_base,
+          f_reg,
+          0,
+          false,
+        ),
+      )
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Move,
+          call_base + 1,
+          s_reg,
+          0,
+          false,
+        ),
+      )
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Move,
+          call_base + 2,
+          var_reg,
+          0,
+          false,
+        ),
+      )
+
+      // Call: CALL base num_args num_results
+      // We want all loop variables as results
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Call,
+          call_base,
+          3, // 2 args + 1 (Lua convention: B = nargs + 1)
+          names.length() + 1, // C = nresults + 1
+          false,
+        ),
+      )
+
+      // Move results to loop variables
+      for i = 0; i < var_regs.length(); i = i + 1 {
+        self.emit(
+          @opcodes.Instruction::abc(
+            @opcodes.OpCode::Move,
+            var_regs[i],
+            call_base + i,
+            0,
+            false,
+          ),
+        )
+      }
+
+      // Check if first loop variable is nil (end of iteration)
+      if var_regs.length() > 0 {
+        let first_var = var_regs[0]
+
+        // Load nil for comparison
+        let nil_reg = self.alloc_register()
+        let nil_const = self.add_constant(@value.TValue::nil())
+        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, nil_reg, nil_const))
+
+        // Compare: if first_var == nil then exit
+        self.emit(
+          @opcodes.Instruction::abc(
+            @opcodes.OpCode::Eq,
+            0, // A unused
+            first_var, // B
+            nil_reg, // C
+            true, // k=true: skip next if first_var == nil
+          ),
+        )
+        let exit_jump = self.emit_jump()
+
+        // Update control variable: var = var1
+        self.emit(
+          @opcodes.Instruction::abc(
+            @opcodes.OpCode::Move,
+            var_reg,
+            first_var,
+            0,
+            false,
+          ),
+        )
+
+        // Compile body
+        self.compile_stmt(body)
+
+        // Jump back to loop start
+        self.patch_jump_to(self.emit_jump(), loop_start)
+
+        // Patch exit jump
+        self.patch_jump(exit_jump)
+      }
+
+      self.exit_loop()
+    }
     @parse.Stmt::Break => self.add_break()
     _ => () // Ignore other statements for now
   }
