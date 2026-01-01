@@ -941,8 +941,17 @@ fn execute_call(
         state.push(@value.TValue::nil())
       }
 
-      // Copy arguments (they're already in the right place at R[A+1], R[A+2], ...)
-      // In a full implementation, we'd handle variable arguments here
+      // Initialize missing parameters to nil
+      // B = arg_count + 1, so actual arg_count = b - 1
+      let arg_count = b - 1
+      let param_count = func.param_count
+      // Arguments are at new_base + 0, ..., new_base + (arg_count - 1)
+      // Missing parameters are from new_base + arg_count to new_base + (param_count - 1)
+      for i = arg_count; i < param_count; i = i + 1 {
+        state.set(new_base + i + 1, @value.TValue::nil()) catch {
+          _ => ()  // Ignore errors
+        }
+      }
 
       // Push new call frame
       state.push_frame(func, new_base, c) catch {

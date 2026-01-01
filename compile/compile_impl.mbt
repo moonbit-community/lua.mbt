@@ -814,7 +814,11 @@ pub fn Compiler::compile_stmt(
 
       // Get the function code and constants
       let proto = func_compiler.finish()
-      let func_value = @value.FunctionValue::new(proto.code(), proto.constants)
+      let func_value = @value.FunctionValue::new_with_params(
+        proto.code(),
+        proto.constants,
+        params.length(),
+      )
 
       // Add function to constants
       let func_const_idx = self.add_constant(@value.TValue::function(func_value))
@@ -904,7 +908,11 @@ pub fn Compiler::compile_stmt(
 
       // Get the function code and constants
       let proto = func_compiler.finish()
-      let func_value = @value.FunctionValue::new(proto.code(), proto.constants)
+      let func_value = @value.FunctionValue::new_with_params(
+        proto.code(),
+        proto.constants,
+        params.length(),
+      )
 
       // Add function to constants and load it
       let const_idx = self.add_constant(@value.TValue::function(func_value))
@@ -2060,7 +2068,11 @@ pub fn Compiler::compile_expr(
 
       // Get the function code and constants
       let proto = func_compiler.finish()
-      let func_value = @value.FunctionValue::new(proto.code(), proto.constants)
+      let func_value = @value.FunctionValue::new_with_params(
+        proto.code(),
+        proto.constants,
+        params.length(),
+      )
 
       // Add function to constants
       let func_const_idx = self.add_constant(@value.TValue::function(func_value))

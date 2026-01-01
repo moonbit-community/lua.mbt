@@ -8,6 +8,7 @@ pub struct FunctionValue {
   code : Array[@opcodes.Instruction]
   constants : Array[TValue]
   upvalues : Array[TValue]
+  param_count : Int  // Number of parameters this function expects
 } derive(Show)
 
 ///|
@@ -16,7 +17,17 @@ pub fn FunctionValue::new(
   code : Array[@opcodes.Instruction],
   constants : Array[TValue],
 ) -> FunctionValue {
-  FunctionValue::{ code, constants, upvalues: [] }
+  FunctionValue::{ code, constants, upvalues: [], param_count: 0 }
+}
+
+///|
+/// Create a new function value with parameter count
+pub fn FunctionValue::new_with_params(
+  code : Array[@opcodes.Instruction],
+  constants : Array[TValue],
+  param_count : Int,
+) -> FunctionValue {
+  FunctionValue::{ code, constants, upvalues: [], param_count }
 }
 
 ///|
