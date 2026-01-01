@@ -684,6 +684,11 @@ fn Lexer::scan_token(self : Lexer) -> Token raise LexError {
           }
         }
         '.' => {
+          // Check if it's a number starting with decimal point (e.g., .5)
+          match self.peek_char() {
+            Some(next) if is_digit(next) => return self.scan_number()
+            _ => ()
+          }
           ignore(self.advance())
           if self.current() == Some('.') {
             ignore(self.advance())
