@@ -723,9 +723,9 @@ pub fn execute_instruction(
         _ => raise VMError::RuntimeError(message="GETGLOBAL requires string constant")
       }
 
-      // Get value from globals
+      // Get value from globals (returns nil for undefined globals)
       let value = state.get_global(name) catch {
-        _ => raise VMError::RuntimeError(message="Failed to get global '\{name}'")
+        err => raise VMError::RuntimeError(message="Unexpected error getting global '\{name}': \{err}")
       }
       state.set(base + a + 1, value) catch {
         _ =>

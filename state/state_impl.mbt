@@ -134,7 +134,7 @@ pub fn LuaState::get_global(
 ) -> @value.TValue raise StateError {
   match self.globals.get(name) {
     Some(value) => value
-    None => raise StateError::GlobalNotFound(name~)
+    None => @value.TValue::nil()  // Undefined globals return nil in Lua
   }
 }
 
