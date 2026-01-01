@@ -894,6 +894,220 @@ fn call_native_function(
         err => raise VMError::RuntimeError(message=err.to_string())
       }
     }
+    // Math library functions
+    "math.abs" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="abs requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="abs requires a number")
+      }
+      let result = if arg < 0.0 { -arg } else { arg }
+      [@value.TValue::number(result)]
+    }
+    "math.floor" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="floor requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="floor requires a number")
+      }
+      [@value.TValue::number(@math.floor(arg))]
+    }
+    "math.ceil" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="ceil requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="ceil requires a number")
+      }
+      [@value.TValue::number(@math.ceil(arg))]
+    }
+    "math.min" => {
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="min requires at least one argument")
+      }
+      let mut min_val = try {
+        args[0].to_number()
+      } catch {
+        _ => raise VMError::InvalidOperation(message="min requires numbers")
+      }
+      for i = 1; i < args.length(); i = i + 1 {
+        let val = try {
+          args[i].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="min requires numbers")
+        }
+        if val < min_val {
+          min_val = val
+        }
+      }
+      [@value.TValue::number(min_val)]
+    }
+    "math.max" => {
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="max requires at least one argument")
+      }
+      let mut max_val = try {
+        args[0].to_number()
+      } catch {
+        _ => raise VMError::InvalidOperation(message="max requires numbers")
+      }
+      for i = 1; i < args.length(); i = i + 1 {
+        let val = try {
+          args[i].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="max requires numbers")
+        }
+        if val > max_val {
+          max_val = val
+        }
+      }
+      [@value.TValue::number(max_val)]
+    }
+    "math.sqrt" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="sqrt requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="sqrt requires a number")
+      }
+      [@value.TValue::number(@math.pow(arg, 0.5))]
+    }
+    "math.sin" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="sin requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="sin requires a number")
+      }
+      [@value.TValue::number(@math.sin(arg))]
+    }
+    "math.cos" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="cos requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="cos requires a number")
+      }
+      [@value.TValue::number(@math.cos(arg))]
+    }
+    "math.tan" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="tan requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="tan requires a number")
+      }
+      [@value.TValue::number(@math.tan(arg))]
+    }
+    "math.asin" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="asin requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="asin requires a number")
+      }
+      [@value.TValue::number(@math.asin(arg))]
+    }
+    "math.acos" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="acos requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="acos requires a number")
+      }
+      [@value.TValue::number(@math.acos(arg))]
+    }
+    "math.atan" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="atan requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="atan requires a number")
+      }
+      [@value.TValue::number(@math.atan(arg))]
+    }
+    "math.exp" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="exp requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="exp requires a number")
+      }
+      [@value.TValue::number(@math.exp(arg))]
+    }
+    "math.log" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="log requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="log requires a number")
+      }
+      [@value.TValue::number(@math.ln(arg))]
+    }
+    "math.deg" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="deg requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="deg requires a number")
+      }
+      let degrees = arg * (180.0 / 3.14159265358979323846)
+      [@value.TValue::number(degrees)]
+    }
+    "math.rad" => {
+      let arg = if args.length() > 0 {
+        try {
+          args[0].to_number()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="rad requires a number")
+        }
+      } else {
+        raise VMError::InvalidOperation(message="rad requires a number")
+      }
+      let radians = arg * (3.14159265358979323846 / 180.0)
+      [@value.TValue::number(radians)]
+    }
     _ => {
       // Ignore set_global for now - it's used during initialization
       ignore(state)

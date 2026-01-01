@@ -705,4 +705,31 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   state.set_global("tonumber", @value.TValue::native_function("tonumber"))
   state.set_global("tostring", @value.TValue::native_function("tostring"))
   state.set_global("assert", @value.TValue::native_function("assert"))
+
+  // Create math library table
+  let math_table = @value.Table::new()
+
+  // Math constants
+  math_table.set_string("pi", @value.TValue::number(3.14159265358979323846))
+  math_table.set_string("huge", @value.TValue::number(1.0 / 0.0))  // infinity
+
+  // Math functions
+  math_table.set_string("abs", @value.TValue::native_function("math.abs"))
+  math_table.set_string("floor", @value.TValue::native_function("math.floor"))
+  math_table.set_string("ceil", @value.TValue::native_function("math.ceil"))
+  math_table.set_string("min", @value.TValue::native_function("math.min"))
+  math_table.set_string("max", @value.TValue::native_function("math.max"))
+  math_table.set_string("sqrt", @value.TValue::native_function("math.sqrt"))
+  math_table.set_string("sin", @value.TValue::native_function("math.sin"))
+  math_table.set_string("cos", @value.TValue::native_function("math.cos"))
+  math_table.set_string("tan", @value.TValue::native_function("math.tan"))
+  math_table.set_string("asin", @value.TValue::native_function("math.asin"))
+  math_table.set_string("acos", @value.TValue::native_function("math.acos"))
+  math_table.set_string("atan", @value.TValue::native_function("math.atan"))
+  math_table.set_string("exp", @value.TValue::native_function("math.exp"))
+  math_table.set_string("log", @value.TValue::native_function("math.log"))
+  math_table.set_string("deg", @value.TValue::native_function("math.deg"))
+  math_table.set_string("rad", @value.TValue::native_function("math.rad"))
+
+  state.set_global("math", @value.TValue::table(math_table))
 }
