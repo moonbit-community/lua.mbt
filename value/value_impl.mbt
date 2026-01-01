@@ -184,8 +184,19 @@ pub fn Table::set(self : Table, key : TValue, value : TValue) -> Unit {
 
 ///|
 /// Get table length (array part only)
+/// In Lua, #t returns the "border" of the array: the last index i where
+/// t[i] != nil and t[i+1] == nil (or 0 if all elements are nil)
 pub fn Table::length(self : Table) -> Int {
-  self.array.length()
+  // Search backwards from the end to find the last non-nil element
+  let mut i = self.array.length()
+  while i > 0 {
+    match self.array[i - 1] {
+      TValue::Nil => i = i - 1  // Skip trailing nils
+      _ => return i  // Found last non-nil element
+    }
+  }
+  // All elements are nil (or array is empty)
+  0
 }
 
 ///|
