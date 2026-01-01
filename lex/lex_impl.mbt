@@ -269,10 +269,6 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
               content.write_char('\r')
               ignore(self.advance())
             }
-            Some('0') => {
-              content.write_char('\u0000')  // Null character
-              ignore(self.advance())
-            }
             Some('a') => {
               content.write_char('\u0007')  // Bell/alert
               ignore(self.advance())
@@ -300,6 +296,51 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
             Some('\'') => {
               content.write_char('\'')
               ignore(self.advance())
+            }
+            Some('x') => {
+              // Hex escape \xHH (exactly 2 hex digits)
+              ignore(self.advance())
+              let mut hex_value = 0
+              let mut digit_count = 0
+              while digit_count < 2 {
+                match self.current() {
+                  Some(d) if is_hex_digit(d) => {
+                    let digit_val = if d >= '0' && d <= '9' {
+                      d.to_int() - '0'.to_int()
+                    } else if d >= 'a' && d <= 'f' {
+                      d.to_int() - 'a'.to_int() + 10
+                    } else {
+                      d.to_int() - 'A'.to_int() + 10
+                    }
+                    hex_value = hex_value * 16 + digit_val
+                    digit_count = digit_count + 1
+                    ignore(self.advance())
+                  }
+                  _ => raise LexError::InvalidEscape(pos=self.pos, char='x')
+                }
+              }
+              content.write_char(hex_value.unsafe_to_char())
+            }
+            Some(d) if is_digit(d) => {
+              // Decimal escape \ddd (up to 3 digits, max 255)
+              let mut dec_value = d.to_int() - '0'.to_int()
+              ignore(self.advance())
+              let mut digit_count = 1
+              while digit_count < 3 {
+                match self.current() {
+                  Some(d2) if is_digit(d2) => {
+                    let new_value = dec_value * 10 + (d2.to_int() - '0'.to_int())
+                    if new_value > 255 {
+                      break
+                    }
+                    dec_value = new_value
+                    digit_count = digit_count + 1
+                    ignore(self.advance())
+                  }
+                  _ => break
+                }
+              }
+              content.write_char(dec_value.unsafe_to_char())
             }
             Some(esc) => raise LexError::InvalidEscape(pos=self.pos, char=esc)
           }
