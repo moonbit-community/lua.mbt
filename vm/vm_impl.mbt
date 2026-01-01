@@ -894,6 +894,21 @@ fn call_native_function(
         err => raise VMError::RuntimeError(message=err.to_string())
       }
     }
+    "error" => {
+      // error(message, [level])
+      // Raises a Lua error with the given message
+      // level parameter is ignored for now (used for error reporting depth)
+      let message = if args.length() > 0 {
+        match args[0] {
+          @value.TValue::String(s) => s
+          @value.TValue::Nil => "error"
+          _ => args[0].to_string()
+        }
+      } else {
+        "error"
+      }
+      raise VMError::RuntimeError(message=message)
+    }
     // Math library functions
     "math.abs" => {
       let arg = if args.length() > 0 {

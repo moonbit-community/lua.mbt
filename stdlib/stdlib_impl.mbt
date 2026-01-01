@@ -705,6 +705,7 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   state.set_global("tonumber", @value.TValue::native_function("tonumber"))
   state.set_global("tostring", @value.TValue::native_function("tostring"))
   state.set_global("assert", @value.TValue::native_function("assert"))
+  state.set_global("error", @value.TValue::native_function("error"))
 
   // Create math library table
   let math_table = @value.Table::new()
