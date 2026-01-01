@@ -957,6 +957,106 @@ fn call_native_function(
       }
       [@value.TValue::number(length.to_double())]
     }
+    // Iteration functions
+    "next" => {
+      // next(table, index) - Get next key-value pair
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="next requires a table argument")
+      }
+      let table = match args[0] {
+        @value.TValue::Table(t) => t
+        _ => raise VMError::InvalidOperation(message="next requires a table")
+      }
+
+      let start_key = if args.length() >= 2 { args[1] } else { @value.TValue::nil() }
+
+      // Simplified implementation: iterate through array part first, then we're done
+      // Full implementation would also iterate through hash part
+      match start_key {
+        @value.TValue::Nil => {
+          // Start from beginning - try index 1
+          let val = table.get_int(1)
+          if !val.is_nil() {
+            [@value.TValue::integer(1L), val]
+          } else {
+            // Array is empty, return nil (hash iteration not implemented)
+            [@value.TValue::nil()]
+          }
+        }
+        @value.TValue::Integer(i) => {
+          // Try next integer index
+          let next_idx = i.to_int() + 1
+          let val = table.get_int(next_idx)
+          if !val.is_nil() {
+            [@value.TValue::integer(next_idx.to_int64()), val]
+          } else {
+            // No more array elements (hash iteration not implemented)
+            [@value.TValue::nil()]
+          }
+        }
+        _ => {
+          // Non-integer key (hash part not implemented for iteration)
+          [@value.TValue::nil()]
+        }
+      }
+    }
+    "pairs" => {
+      // pairs(table) - Returns iterator function, table, nil
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="pairs requires a table argument")
+      }
+      match args[0] {
+        @value.TValue::Table(_) => {
+          // Return: next function, table, nil (starting key)
+          [
+            @value.TValue::native_function("next"),
+            args[0],
+            @value.TValue::nil()
+          ]
+        }
+        _ => raise VMError::InvalidOperation(message="pairs requires a table")
+      }
+    }
+    "ipairs" => {
+      // ipairs(table) - Returns iterator function, table, 0
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="ipairs requires a table argument")
+      }
+      match args[0] {
+        @value.TValue::Table(_) => {
+          // Return: iterator function (ipairs_iter), table, 0 (starting index)
+          [
+            @value.TValue::native_function("ipairs_iter"),
+            args[0],
+            @value.TValue::integer(0L)
+          ]
+        }
+        _ => raise VMError::InvalidOperation(message="ipairs requires a table")
+      }
+    }
+    "ipairs_iter" => {
+      // Internal iterator for ipairs: (table, i) -> (i+1, table[i+1])
+      if args.length() < 2 {
+        raise VMError::InvalidOperation(message="ipairs_iter requires table and index")
+      }
+      let table = match args[0] {
+        @value.TValue::Table(t) => t
+        _ => raise VMError::InvalidOperation(message="ipairs_iter requires a table")
+      }
+      let i = match args[1] {
+        @value.TValue::Integer(idx) => idx.to_int()
+        @value.TValue::Number(n) => n.to_int()
+        _ => raise VMError::InvalidOperation(message="ipairs_iter requires numeric index")
+      }
+
+      let next_i = i + 1
+      let val = table.get_int(next_i)
+      if !val.is_nil() {
+        [@value.TValue::integer(next_i.to_int64()), val]
+      } else {
+        [@value.TValue::nil()]
+      }
+    }
     // Math library functions
     "math.abs" => {
       let arg = if args.length() > 0 {

@@ -713,6 +713,11 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   state.set_global("rawequal", @value.TValue::native_function("rawequal"))
   state.set_global("rawlen", @value.TValue::native_function("rawlen"))
 
+  // Iteration functions
+  state.set_global("next", @value.TValue::native_function("next"))
+  state.set_global("pairs", @value.TValue::native_function("pairs"))
+  state.set_global("ipairs", @value.TValue::native_function("ipairs"))
+
   // Create math library table
   let math_table = @value.Table::new()
 
