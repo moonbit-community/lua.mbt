@@ -564,23 +564,15 @@ pub fn Compiler::compile_stmt(
       // Compile condition
       let cond_reg = self.compile_expr(condition)
 
-      // Emit comparison: if condition is false, skip then block
-      // Use a true constant for comparison
-      let true_reg = self.alloc_register()
-      self.emit(
-        @opcodes.Instruction::abc(@opcodes.OpCode::LoadTrue, true_reg, 0, 0, false),
-      )
-
-      // EQ instruction: if (R[B] == R[C]) ~= k then PC++
-      // We want to check if condition == true, so B=cond_reg, C=true_reg
-      // With k=false: if both are true, (true != false) skips the jump
+      // TEST instruction: if (not R[A]) != k then PC++
+      // With k=false: skip if condition is truthy (i.e., execute then block if truthy)
       self.emit(
         @opcodes.Instruction::abc(
-          @opcodes.OpCode::Eq,
-          0,  // A is unused
-          cond_reg,
-          true_reg,
-          false, // k=false: skip jump if condition==true (execute then block)
+          @opcodes.OpCode::Test,
+          cond_reg,  // A = condition register
+          0,  // B unused
+          0,  // C unused
+          false, // k=false: skip jump if truthy
         ),
       )
       let then_jump = self.emit_jump() // Jump over then block if false
@@ -608,22 +600,15 @@ pub fn Compiler::compile_stmt(
       // Compile condition
       let cond_reg = self.compile_expr(condition)
 
-      // Use a true constant for comparison
-      let true_reg = self.alloc_register()
-      self.emit(
-        @opcodes.Instruction::abc(@opcodes.OpCode::LoadTrue, true_reg, 0, 0, false),
-      )
-
-      // EQ instruction: if (R[B] == R[C]) ~= k then PC++
-      // We want to check if condition == true, so B=cond_reg, C=true_reg
-      // With k=false: if both are true, (true != false) skips the exit jump
+      // TEST instruction: if (not R[A]) != k then PC++
+      // With k=false: skip if condition is truthy (continue looping if truthy)
       self.emit(
         @opcodes.Instruction::abc(
-          @opcodes.OpCode::Eq,
-          0,  // A is unused
-          cond_reg,
-          true_reg,
-          false, // k=false: skip exit jump if condition==true, i.e., continue looping
+          @opcodes.OpCode::Test,
+          cond_reg,  // A = condition register
+          0,  // B unused
+          0,  // C unused
+          false, // k=false: skip exit jump if truthy, i.e., continue looping
         ),
       )
       let exit_jump = self.emit_jump()
@@ -651,22 +636,16 @@ pub fn Compiler::compile_stmt(
       // Compile condition
       let cond_reg = self.compile_expr(condition)
 
-      // Use a true constant for comparison
-      let true_reg = self.alloc_register()
-      self.emit(
-        @opcodes.Instruction::abc(@opcodes.OpCode::LoadTrue, true_reg, 0, 0, false),
-      )
-
-      // EQ instruction: if (R[B] == R[C]) ~= k then PC++
-      // With k=false: if condition == true, skip the jump back (exit loop)
-      // If condition == false, execute the jump back (continue loop)
+      // TEST instruction: if (not R[A]) != k then PC++
+      // With k=false: skip loop-back jump if condition is truthy (exit loop)
+      // If condition is falsy, execute the jump back (continue loop)
       self.emit(
         @opcodes.Instruction::abc(
-          @opcodes.OpCode::Eq,
-          0,  // A is unused
-          cond_reg,
-          true_reg,
-          false, // k=false: skip loop-back jump if condition==true (exit loop)
+          @opcodes.OpCode::Test,
+          cond_reg,  // A = condition register
+          0,  // B unused
+          0,  // C unused
+          false, // k=false: skip loop-back jump if condition is truthy (exit loop)
         ),
       )
 

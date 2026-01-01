@@ -51,6 +51,7 @@ pub(all) enum OpCode {
   Lt // if (R[A] < R[B]) != k then pc++
   Le // if (R[A] <= R[B]) != k then pc++
   Not // R[A] := not R[B]
+  Test // if (not R[A]) != k then pc++
 
   // Control flow
   Jmp // pc += sJ

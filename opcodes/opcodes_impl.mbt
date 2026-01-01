@@ -113,17 +113,18 @@ pub fn opcode_to_int(op : OpCode) -> Int {
     Lt => 23
     Le => 24
     Not => 25
-    Jmp => 26
-    Return => 27
-    Call => 28
-    NewTable => 29
-    GetTable => 30
-    SetTable => 31
-    Closure => 32
-    GetUpval => 33
-    SetUpval => 34
-    GetGlobal => 35
-    SetGlobal => 36
+    Test => 26
+    Jmp => 27
+    Return => 28
+    Call => 29
+    NewTable => 30
+    GetTable => 31
+    SetTable => 32
+    Closure => 33
+    GetUpval => 34
+    SetUpval => 35
+    GetGlobal => 36
+    SetGlobal => 37
   }
 }
 
@@ -157,17 +158,18 @@ fn int_to_opcode(i : Int) -> OpCode {
     23 => OpCode::Lt
     24 => OpCode::Le
     25 => OpCode::Not
-    26 => OpCode::Jmp
-    27 => OpCode::Return
-    28 => OpCode::Call
-    29 => OpCode::NewTable
-    30 => OpCode::GetTable
-    31 => OpCode::SetTable
-    32 => OpCode::Closure
-    33 => OpCode::GetUpval
-    34 => OpCode::SetUpval
-    35 => OpCode::GetGlobal
-    36 => OpCode::SetGlobal
+    26 => OpCode::Test
+    27 => OpCode::Jmp
+    28 => OpCode::Return
+    29 => OpCode::Call
+    30 => OpCode::NewTable
+    31 => OpCode::GetTable
+    32 => OpCode::SetTable
+    33 => OpCode::Closure
+    34 => OpCode::GetUpval
+    35 => OpCode::SetUpval
+    36 => OpCode::GetGlobal
+    37 => OpCode::SetGlobal
     _ => OpCode::Move // Default fallback
   }
 }

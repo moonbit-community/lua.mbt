@@ -516,6 +516,24 @@ pub fn execute_instruction(
       }
       ExecutionResult::Continue
     }
+    @opcodes.OpCode::Test => {
+      // Test: if (not R[A]) != k then PC++
+      // If k=false: skip if R[A] is truthy
+      // If k=true: skip if R[A] is falsy
+      let a = instr.get_a()
+      let k = instr.get_k()
+      let val_a = state.get(base + a + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in TEST")
+      }
+      let is_truthy = val_a.to_boolean()
+      let should_skip = if k { !is_truthy } else { is_truthy }
+      if should_skip {
+        ExecutionResult::Jump(1)  // Skip next instruction
+      } else {
+        ExecutionResult::Continue
+      }
+    }
     @opcodes.OpCode::Eq => {
       // Eq: if (R[B] == R[C]) ~= k then PC++
       let should_skip = execute_comparison(
