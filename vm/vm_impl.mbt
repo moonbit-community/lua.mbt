@@ -1108,6 +1108,204 @@ fn call_native_function(
       let radians = arg * (3.14159265358979323846 / 180.0)
       [@value.TValue::number(radians)]
     }
+    // Table library functions
+    "table.insert" => {
+      // table.insert(table, [pos,] value)
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="table.insert requires a table argument")
+      }
+      let table = match args[0] {
+        @value.TValue::Table(t) => t
+        _ => raise VMError::InvalidOperation(message="table.insert requires a table")
+      }
+
+      if args.length() == 2 {
+        // table.insert(table, value) - append to end
+        let value = args[1]
+        let len = table.length()
+        table.set_int(len + 1, value)
+      } else if args.length() >= 3 {
+        // table.insert(table, pos, value) - insert at position
+        let pos = try {
+          args[1].to_integer()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="table.insert position must be a number")
+        }
+        let value = args[2]
+
+        // Shift elements from pos onwards to the right
+        let len = table.length()
+        for i = len; i >= pos.to_int(); i = i - 1 {
+          let val = table.get_int(i)
+          table.set_int(i + 1, val)
+        }
+        // Insert the new value
+        table.set_int(pos.to_int(), value)
+      } else {
+        raise VMError::InvalidOperation(message="table.insert requires at least 2 arguments")
+      }
+      []  // Returns nothing
+    }
+    "table.remove" => {
+      // table.remove(table, [pos])
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="table.remove requires a table argument")
+      }
+      let table = match args[0] {
+        @value.TValue::Table(t) => t
+        _ => raise VMError::InvalidOperation(message="table.remove requires a table")
+      }
+
+      let pos = if args.length() >= 2 {
+        try {
+          args[1].to_integer().to_int()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="table.remove position must be a number")
+        }
+      } else {
+        // Default: remove last element
+        table.length()
+      }
+
+      let removed = table.get_int(pos)
+
+      // Shift elements from pos+1 onwards to the left
+      let len = table.length()
+      for i = pos; i < len; i = i + 1 {
+        let val = table.get_int(i + 1)
+        table.set_int(i, val)
+      }
+      // Clear the last element
+      table.set_int(len, @value.TValue::nil())
+
+      [removed]
+    }
+    "table.concat" => {
+      // table.concat(table, [sep, [i, [j]]])
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="table.concat requires a table argument")
+      }
+      let table = match args[0] {
+        @value.TValue::Table(t) => t
+        _ => raise VMError::InvalidOperation(message="table.concat requires a table")
+      }
+
+      let sep = if args.length() >= 2 {
+        match args[1] {
+          @value.TValue::String(s) => s
+          _ => ""
+        }
+      } else {
+        ""
+      }
+
+      let start = if args.length() >= 3 {
+        try {
+          args[2].to_integer().to_int()
+        } catch {
+          _ => 1
+        }
+      } else {
+        1
+      }
+
+      let end = if args.length() >= 4 {
+        try {
+          args[3].to_integer().to_int()
+        } catch {
+          _ => table.length()
+        }
+      } else {
+        table.length()
+      }
+
+      let result = StringBuilder::new()
+      for i = start; i <= end; i = i + 1 {
+        if i > start {
+          result.write_string(sep)
+        }
+        let val = table.get_int(i)
+        result.write_string(val.to_string())
+      }
+      [@value.TValue::string(result.to_string())]
+    }
+    "table.sort" => {
+      // table.sort(table, [comp]) - we'll implement simple ascending sort for now
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="table.sort requires a table argument")
+      }
+      let table = match args[0] {
+        @value.TValue::Table(t) => t
+        _ => raise VMError::InvalidOperation(message="table.sort requires a table")
+      }
+
+      // Simple bubble sort implementation
+      let len = table.length()
+      for i = 1; i <= len; i = i + 1 {
+        for j = 1; j < len; j = j + 1 {
+          let a = table.get_int(j)
+          let b = table.get_int(j + 1)
+
+          // Compare values (numbers or strings)
+          let should_swap = try {
+            b.less_than(a)
+          } catch {
+            _ => false
+          }
+
+          if should_swap {
+            table.set_int(j, b)
+            table.set_int(j + 1, a)
+          }
+        }
+      }
+      []  // Returns nothing
+    }
+    "table.pack" => {
+      // table.pack(...) - returns table with all arguments and field 'n'
+      let result = @value.Table::new()
+      for i = 0; i < args.length(); i = i + 1 {
+        result.set_int(i + 1, args[i])
+      }
+      result.set_string("n", @value.TValue::integer(args.length().to_int64()))
+      [@value.TValue::table(result)]
+    }
+    "table.unpack" => {
+      // table.unpack(table, [i, [j]])
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="table.unpack requires a table argument")
+      }
+      let table = match args[0] {
+        @value.TValue::Table(t) => t
+        _ => raise VMError::InvalidOperation(message="table.unpack requires a table")
+      }
+
+      let start = if args.length() >= 2 {
+        try {
+          args[1].to_integer().to_int()
+        } catch {
+          _ => 1
+        }
+      } else {
+        1
+      }
+
+      let end = if args.length() >= 3 {
+        try {
+          args[2].to_integer().to_int()
+        } catch {
+          _ => table.length()
+        }
+      } else {
+        table.length()
+      }
+
+      let result = Array::new()
+      for i = start; i <= end; i = i + 1 {
+        result.push(table.get_int(i))
+      }
+      result
+    }
     _ => {
       // Ignore set_global for now - it's used during initialization
       ignore(state)

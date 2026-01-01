@@ -732,4 +732,15 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   math_table.set_string("rad", @value.TValue::native_function("math.rad"))
 
   state.set_global("math", @value.TValue::table(math_table))
+
+  // Create table library table
+  let table_table = @value.Table::new()
+  table_table.set_string("insert", @value.TValue::native_function("table.insert"))
+  table_table.set_string("remove", @value.TValue::native_function("table.remove"))
+  table_table.set_string("concat", @value.TValue::native_function("table.concat"))
+  table_table.set_string("sort", @value.TValue::native_function("table.sort"))
+  table_table.set_string("pack", @value.TValue::native_function("table.pack"))
+  table_table.set_string("unpack", @value.TValue::native_function("table.unpack"))
+
+  state.set_global("table", @value.TValue::table(table_table))
 }
