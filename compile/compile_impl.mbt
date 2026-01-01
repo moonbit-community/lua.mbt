@@ -477,10 +477,27 @@ pub fn Compiler::compile_stmt(
         value_regs.push(reg)
       }
 
-      // Assign to lvalues
+      // Copy RHS values to temporary registers to prevent overwriting
+      // This is necessary for cases like: a, b = b, a
+      let temp_regs : Array[Int] = []
+      for value_reg in value_regs {
+        let temp_reg = self.alloc_register()
+        self.emit(
+          @opcodes.Instruction::abc(
+            @opcodes.OpCode::Move,
+            temp_reg,
+            value_reg,
+            0,
+            false,
+          ),
+        )
+        temp_regs.push(temp_reg)
+      }
+
+      // Assign to lvalues using temporary registers
       for i, lval in lvals {
-        let value_reg = if i < value_regs.length() {
-          value_regs[i]
+        let value_reg = if i < temp_regs.length() {
+          temp_regs[i]
         } else {
           // If not enough rvalues, use nil
           let nil_reg = self.alloc_register()
