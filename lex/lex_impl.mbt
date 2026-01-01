@@ -269,6 +269,26 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
               content.write_char('\r')
               ignore(self.advance())
             }
+            Some('0') => {
+              content.write_char('\u0000')  // Null character
+              ignore(self.advance())
+            }
+            Some('a') => {
+              content.write_char('\u0007')  // Bell/alert
+              ignore(self.advance())
+            }
+            Some('b') => {
+              content.write_char('\u0008')  // Backspace
+              ignore(self.advance())
+            }
+            Some('f') => {
+              content.write_char('\u000C')  // Form feed
+              ignore(self.advance())
+            }
+            Some('v') => {
+              content.write_char('\u000B')  // Vertical tab
+              ignore(self.advance())
+            }
             Some('\\') => {
               content.write_char('\\')
               ignore(self.advance())
