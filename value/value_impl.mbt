@@ -364,11 +364,64 @@ pub fn TValue::to_integer(self : TValue) -> Int64 raise ValueError {
 }
 
 ///|
+/// Try to parse a string as a number (for implicit conversion)
+fn try_parse_number(s : String) -> Double? {
+  // Trim whitespace
+  let trimmed = s.trim()
+  if trimmed.is_empty() {
+    return None
+  }
+
+  // Check for hex format
+  if trimmed.has_prefix("0x") || trimmed.has_prefix("0X") {
+    // Parse as hex integer
+    let hex_str = try {
+      trimmed[2:].to_string()
+    } catch {
+      _ => return None
+    }
+    let mut result : Int64 = 0
+    for c in hex_str {
+      let digit = if c >= '0' && c <= '9' {
+        c.to_int() - '0'.to_int()
+      } else if c >= 'a' && c <= 'f' {
+        c.to_int() - 'a'.to_int() + 10
+      } else if c >= 'A' && c <= 'F' {
+        c.to_int() - 'A'.to_int() + 10
+      } else {
+        return None  // Invalid hex digit
+      }
+      result = result * 16 + digit.to_int64()
+    }
+    return Some(result.to_double())
+  }
+
+  // Parse as decimal number using standard library
+  try {
+    Some(@strconv.parse_double!(trimmed))
+  } catch {
+    _ => None
+  }
+}
+
+///|
 /// Try to extract float value
 pub fn TValue::to_number(self : TValue) -> Double raise ValueError {
   match self {
     Integer(i) => i.to_double()
     Number(n) => n
+    String(s) => {
+      // Try to parse string as number (implicit conversion)
+      // Convert to string and parse
+      match try_parse_number(s) {
+        Some(num) => num
+        None =>
+          raise ValueError::TypeMismatch(
+            expected=LuaType::Number,
+            actual=self.type_of(),
+          )
+      }
+    }
     _ =>
       raise ValueError::TypeMismatch(
         expected=LuaType::Number,
