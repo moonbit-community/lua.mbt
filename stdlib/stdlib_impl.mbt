@@ -707,6 +707,12 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   state.set_global("assert", @value.TValue::native_function("assert"))
   state.set_global("error", @value.TValue::native_function("error"))
 
+  // Raw table access functions (bypass metatables)
+  state.set_global("rawget", @value.TValue::native_function("rawget"))
+  state.set_global("rawset", @value.TValue::native_function("rawset"))
+  state.set_global("rawequal", @value.TValue::native_function("rawequal"))
+  state.set_global("rawlen", @value.TValue::native_function("rawlen"))
+
   // Create math library table
   let math_table = @value.Table::new()
 

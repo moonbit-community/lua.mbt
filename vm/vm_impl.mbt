@@ -909,6 +909,54 @@ fn call_native_function(
       }
       raise VMError::RuntimeError(message=message)
     }
+    // Raw table access functions (bypass metatables)
+    "rawget" => {
+      // rawget(table, index) - Get table element without invoking metamethods
+      if args.length() < 2 {
+        raise VMError::InvalidOperation(message="rawget requires 2 arguments")
+      }
+      let table = match args[0] {
+        @value.TValue::Table(t) => t
+        _ => raise VMError::InvalidOperation(message="rawget requires a table")
+      }
+      let key = args[1]
+      [table.get(key)]
+    }
+    "rawset" => {
+      // rawset(table, index, value) - Set table element without invoking metamethods
+      if args.length() < 3 {
+        raise VMError::InvalidOperation(message="rawset requires 3 arguments")
+      }
+      let table = match args[0] {
+        @value.TValue::Table(t) => t
+        _ => raise VMError::InvalidOperation(message="rawset requires a table")
+      }
+      let key = args[1]
+      let value = args[2]
+      table.set(key, value)
+      [args[0]]  // Returns the table
+    }
+    "rawequal" => {
+      // rawequal(v1, v2) - Check equality without invoking metamethods
+      if args.length() < 2 {
+        raise VMError::InvalidOperation(message="rawequal requires 2 arguments")
+      }
+      let v1 = args[0]
+      let v2 = args[1]
+      [@value.TValue::boolean(v1.equal(v2))]
+    }
+    "rawlen" => {
+      // rawlen(v) - Get length without invoking metamethods
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="rawlen requires an argument")
+      }
+      let length = match args[0] {
+        @value.TValue::String(s) => s.length()
+        @value.TValue::Table(t) => t.length()
+        _ => raise VMError::InvalidOperation(message="rawlen requires string or table")
+      }
+      [@value.TValue::number(length.to_double())]
+    }
     // Math library functions
     "math.abs" => {
       let arg = if args.length() > 0 {
