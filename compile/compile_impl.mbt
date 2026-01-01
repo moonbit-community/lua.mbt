@@ -301,11 +301,9 @@ pub fn Compiler::compile_stmt(
 ) -> Unit raise CompileError {
   match stmt {
     @parse.Stmt::Block(stmts) => {
-      // Only enter/exit scope for nested blocks, not the top-level chunk
-      let is_nested = self.scope_depth > 0
-      if is_nested {
-        self.enter_scope()
-      }
+      // ALWAYS create a new scope for explicit do-end blocks
+      // The top-level chunk is handled specially in compile() to avoid this
+      self.enter_scope()
       for s in stmts {
         // Save register baseline before statement (to free expression temporaries after)
         let baseline = self.next_register
@@ -326,9 +324,7 @@ pub fn Compiler::compile_stmt(
         }
         self.next_register = target_reg
       }
-      if is_nested {
-        self.exit_scope()
-      }
+      self.exit_scope()
     }
     @parse.Stmt::LocalDecl(names, values) => {
       // Special case: if we have a single value that's a function call,
@@ -2121,6 +2117,36 @@ pub fn Compiler::finish(self : Compiler) -> @vm.Proto {
 /// Compile a complete Lua chunk to bytecode
 pub fn compile(stmt : @parse.Stmt) -> @vm.Proto raise CompileError {
   let compiler = Compiler::new()
-  compiler.compile_stmt(stmt)
+
+  // Handle top-level chunk specially: it's a Block but shouldn't create a scope
+  // All explicit do-end blocks will create scopes (even at top level)
+  match stmt {
+    @parse.Stmt::Block(stmts) => {
+      // Top-level chunk: compile statements without entering a scope
+      // This way, top-level locals are at scope_depth=0
+      for s in stmts {
+        // Save register baseline before statement (to free expression temporaries after)
+        let baseline = compiler.next_register
+        compiler.compile_stmt(s)
+        // Restore baseline after statement (but keep any new locals)
+        // Find highest register used by locals at current scope
+        let mut max_local_reg = -1
+        for local in compiler.locals {
+          if local.scope_depth == compiler.scope_depth && local.register > max_local_reg {
+            max_local_reg = local.register
+          }
+        }
+        // Reset to max(baseline, max_local_reg + 1) to preserve new locals
+        let target_reg = if max_local_reg >= baseline {
+          max_local_reg + 1
+        } else {
+          baseline
+        }
+        compiler.next_register = target_reg
+      }
+    }
+    _ => compiler.compile_stmt(stmt)
+  }
+
   compiler.finish()
 }
