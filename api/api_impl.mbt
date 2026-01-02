@@ -63,6 +63,10 @@ pub fn LuaAPI::load_string(
       raise APIError::RuntimeError(
         message="Break statement outside loop at line \{line}",
       )
+    @compile.CompileError::InvalidSyntax(message~, line~) =>
+      raise APIError::SyntaxError(
+        message="\{message} at line \{line}",
+      )
   }
 
   // Execute the bytecode

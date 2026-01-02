@@ -640,8 +640,8 @@ fn Parser::parse_unary(self : Parser) -> Expr raise ParseError {
     }
     @lex.TokenType::TkMinus => {
       ignore(self.advance())
-      // Unary minus: -expr = 0 - expr
-      Expr::Sub(Expr::Number(0.0), self.parse_unary())
+      // Unary minus: -expr
+      Expr::Neg(self.parse_unary())
     }
     @lex.TokenType::TkBitXor => {
       ignore(self.advance())

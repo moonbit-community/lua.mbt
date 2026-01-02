@@ -10,6 +10,7 @@ pub(all) suberror CompileError {
   InvalidJumpTarget(line~ : Int)
   UndefinedVariable(name~ : String, line~ : Int)
   BreakOutsideLoop(line~ : Int)
+  InvalidSyntax(message~ : String, line~ : Int)
 } derive(Eq, Show, ToJson)
 
 ///|

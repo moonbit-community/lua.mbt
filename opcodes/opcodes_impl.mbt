@@ -125,6 +125,7 @@ pub fn opcode_to_int(op : OpCode) -> Int {
     SetUpval => 35
     GetGlobal => 36
     SetGlobal => 37
+    Vararg => 38
   }
 }
 
@@ -170,6 +171,7 @@ fn int_to_opcode(i : Int) -> OpCode {
     35 => OpCode::SetUpval
     36 => OpCode::GetGlobal
     37 => OpCode::SetGlobal
+    38 => OpCode::Vararg
     _ => OpCode::Move // Default fallback
   }
 }

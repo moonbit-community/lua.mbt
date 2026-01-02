@@ -59,7 +59,7 @@ pub fn execute(state : @state.LuaState, proto : Proto) -> Unit raise VMError {
   }
 
   // Push initial call frame
-  state.push_frame(func, base, 0) catch {
+  state.push_frame(func, base, 0, 0) catch {
     _ => raise VMError::RuntimeError(message="Failed to push initial frame")
   }
 
@@ -72,7 +72,8 @@ pub fn execute(state : @state.LuaState, proto : Proto) -> Unit raise VMError {
     // Check if we've finished executing this frame
     if frame.pc >= frame.func.code.length() {
       // Implicit return at end of function
-      execute_return(state, 0, 0)
+      // Use count=1 to return nil (not count=0 which means "all values to top")
+      execute_return(state, 0, 1)
       continue
     }
 
@@ -174,9 +175,16 @@ pub fn execute_instruction(
         raise VMError::RuntimeError(message="Invalid constant index in LOADK")
       }
       let value = constants[bx]
-      state.set(base + a + 1, value) catch {
+      let target_index = base + a + 1
+
+      // Ensure stack is large enough for this write
+      while state.stack_size() < target_index {
+        state.push(@value.TValue::nil())
+      }
+
+      state.set(target_index, value) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register write in LOADK")
+          raise VMError::RuntimeError(message="Invalid register write in LOADK: base=\{base}, a=\{a}, target_index=\{target_index}, stack_size=\{state.stack_size()}")
       }
       ExecutionResult::Continue
     }
@@ -434,16 +442,44 @@ pub fn execute_instruction(
     }
     @opcodes.OpCode::Unm => {
       // Unm: R[A] := -R[B]
+      // With __unm metamethod support
       let a = instr.get_a()
       let b = instr.get_b()
       let val_b = state.get(base + b + 1) catch {
         _ =>
           raise VMError::RuntimeError(message="Invalid register access in UNM")
       }
-      let num = val_b.to_number() catch {
-        _ => raise VMError::InvalidOperation(message="UNM requires number")
+
+      // Check for __unm metamethod
+      let metamethod_opt = get_value_metamethod(val_b, "__unm")
+
+      let result_val = match metamethod_opt {
+        Some(@value.TValue::NativeFunction(nfunc)) => {
+          // Call the native __unm metamethod
+          let results = call_native_function(state, nfunc.name, [val_b])
+          match results.length() {
+            0 => @value.TValue::nil()
+            _ => results[0]
+          }
+        }
+        Some(@value.TValue::Function(func)) => {
+          // Call the bytecode __unm metamethod
+          let results = call_bytecode_function(state, func, [val_b])
+          match results.length() {
+            0 => @value.TValue::nil()
+            _ => results[0]
+          }
+        }
+        _ => {
+          // No metamethod, perform default numeric negation
+          let num = val_b.to_number() catch {
+            _ => raise VMError::InvalidOperation(message="UNM requires number")
+          }
+          @value.TValue::number(-num)
+        }
       }
-      state.set(base + a + 1, @value.TValue::number(-num)) catch {
+
+      state.set(base + a + 1, result_val) catch {
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in UNM")
       }
@@ -451,21 +487,55 @@ pub fn execute_instruction(
     }
     @opcodes.OpCode::Concat => {
       // Concat: R[A] := R[B].. ... ..R[C]
+      // With __concat metamethod support
       let a = instr.get_a()
       let b = instr.get_b()
       let c = instr.get_c()
 
-      // Concatenate all values from R[B] to R[C]
-      let mut result = ""
-      for i = b; i <= c; i = i + 1 {
-        let val = state.get(base + i + 1) catch {
+      // Build result by concatenating values from R[B] to R[C]
+      // Each concatenation checks for __concat metamethod
+      let mut result_val = state.get(base + b + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in CONCAT")
+      }
+
+      for i = b + 1; i <= c; i = i + 1 {
+        let next_val = state.get(base + i + 1) catch {
           _ =>
             raise VMError::RuntimeError(message="Invalid register access in CONCAT")
         }
-        result = result + val.to_string()
+
+        // Check for __concat metamethod
+        let metamethod = match get_value_metamethod(result_val, "__concat") {
+          Some(mm) => Some(mm)
+          None => get_value_metamethod(next_val, "__concat")
+        }
+
+        result_val = match metamethod {
+          Some(@value.TValue::NativeFunction(nfunc)) => {
+            // Call the native __concat metamethod
+            let results = call_native_function(state, nfunc.name, [result_val, next_val])
+            match results.length() {
+              0 => @value.TValue::string("")  // No result, use empty string
+              _ => results[0]  // Use first result
+            }
+          }
+          Some(@value.TValue::Function(func)) => {
+            // Call the bytecode __concat metamethod
+            let results = call_bytecode_function(state, func, [result_val, next_val])
+            match results.length() {
+              0 => @value.TValue::string("")  // No result, use empty string
+              _ => results[0]  // Use first result
+            }
+          }
+          _ => {
+            // No metamethod, perform default string concatenation
+            @value.TValue::string(result_val.to_string() + next_val.to_string())
+          }
+        }
       }
 
-      state.set(base + a + 1, @value.TValue::string(result)) catch {
+      state.set(base + a + 1, result_val) catch {
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in CONCAT")
       }
@@ -473,6 +543,7 @@ pub fn execute_instruction(
     }
     @opcodes.OpCode::Len => {
       // Len: R[A] := #R[B]
+      // With __len metamethod support
       let a = instr.get_a()
       let b = instr.get_b()
       let val_b = state.get(base + b + 1) catch {
@@ -483,7 +554,42 @@ pub fn execute_instruction(
       // Get length based on type
       let length = match val_b {
         @value.TValue::String(s) => s.length()
-        @value.TValue::Table(t) => t.length()
+        @value.TValue::Table(t) => {
+          // Check for __len metamethod
+          match get_metamethod(t, "__len") {
+            Some(@value.TValue::NativeFunction(nfunc)) => {
+              // Call the native __len function with the table as argument
+              let results = call_native_function(state, nfunc.name, [val_b])
+              // Extract the length from the result
+              match results.length() {
+                0 => t.length()  // No result, use default
+                _ => {
+                  match results[0] {
+                    @value.TValue::Integer(i) => i.to_int()
+                    @value.TValue::Number(n) => n.to_int()
+                    _ => t.length()  // Invalid result, use default
+                  }
+                }
+              }
+            }
+            Some(@value.TValue::Function(func)) => {
+              // Call the bytecode __len function with the table as argument
+              let results = call_bytecode_function(state, func, [val_b])
+              // Extract the length from the result
+              match results.length() {
+                0 => t.length()  // No result, use default
+                _ => {
+                  match results[0] {
+                    @value.TValue::Integer(i) => i.to_int()
+                    @value.TValue::Number(n) => n.to_int()
+                    _ => t.length()  // Invalid result, use default
+                  }
+                }
+              }
+            }
+            _ => t.length()  // No __len, use default
+          }
+        }
         _ => raise VMError::RuntimeError(message="attempt to get length of a \{val_b.type_of()} value")
       }
 
@@ -617,6 +723,7 @@ pub fn execute_instruction(
     }
     @opcodes.OpCode::GetTable => {
       // GetTable: R[A] := R[B][R[C]]
+      // With __index metamethod support
       let a = instr.get_a()
       let b = instr.get_b()
       let c = instr.get_c()
@@ -632,7 +739,45 @@ pub fn execute_instruction(
       }
 
       let result = match table_val {
-        @value.TValue::Table(table) => table.get(key_val)
+        @value.TValue::Table(table) => {
+          // First try direct access
+          let value = table.get(key_val)
+
+          // If nil, check for __index metamethod
+          match value {
+            @value.TValue::Nil => {
+              match get_metamethod(table, "__index") {
+                Some(index_mm) => {
+                  match index_mm {
+                    @value.TValue::Table(index_table) => {
+                      // __index is a table, get value from it
+                      index_table.get(key_val)
+                    }
+                    @value.TValue::NativeFunction(nfunc) => {
+                      // __index is a native function, call it with (table, key)
+                      let results = call_native_function(state, nfunc.name, [table_val, key_val])
+                      match results.length() {
+                        0 => @value.TValue::nil()
+                        _ => results[0]
+                      }
+                    }
+                    @value.TValue::Function(func) => {
+                      // __index is a bytecode function, call it with (table, key)
+                      let results = call_bytecode_function(state, func, [table_val, key_val])
+                      match results.length() {
+                        0 => @value.TValue::nil()
+                        _ => results[0]
+                      }
+                    }
+                    _ => @value.TValue::nil()
+                  }
+                }
+                None => @value.TValue::nil()
+              }
+            }
+            _ => value  // Non-nil value found, return it
+          }
+        }
         _ =>
           raise VMError::InvalidOperation(
             message="Attempt to index non-table value",
@@ -647,6 +792,7 @@ pub fn execute_instruction(
     }
     @opcodes.OpCode::SetTable => {
       // SetTable: R[A][R[B]] := R[C]
+      // With __newindex metamethod support
       let a = instr.get_a()
       let b = instr.get_b()
       let c = instr.get_c()
@@ -667,7 +813,48 @@ pub fn execute_instruction(
       }
 
       match table_val {
-        @value.TValue::Table(table) => table.set(key_val, value_val)
+        @value.TValue::Table(table) => {
+          // Check if the key already exists
+          let existing_value = table.get(key_val)
+
+          match existing_value {
+            @value.TValue::Nil => {
+              // Key doesn't exist, check for __newindex metamethod
+              match get_metamethod(table, "__newindex") {
+                Some(newindex_mm) => {
+                  match newindex_mm {
+                    @value.TValue::Table(newindex_table) => {
+                      // __newindex is a table, set value in it
+                      newindex_table.set(key_val, value_val)
+                    }
+                    @value.TValue::NativeFunction(nfunc) => {
+                      // __newindex is a native function, call it with (table, key, value)
+                      ignore(call_native_function(state, nfunc.name, [table_val, key_val, value_val]))
+                      // Function called for side effects, don't store result
+                    }
+                    @value.TValue::Function(func) => {
+                      // __newindex is a bytecode function, call it with (table, key, value)
+                      ignore(call_bytecode_function(state, func, [table_val, key_val, value_val]))
+                      // Function called for side effects, don't store result
+                    }
+                    _ => {
+                      // Invalid __newindex, use direct set
+                      table.set(key_val, value_val)
+                    }
+                  }
+                }
+                None => {
+                  // No __newindex metamethod, set directly
+                  table.set(key_val, value_val)
+                }
+              }
+            }
+            _ => {
+              // Key exists, set directly (don't invoke __newindex)
+              table.set(key_val, value_val)
+            }
+          }
+        }
         _ =>
           raise VMError::InvalidOperation(
             message="Attempt to index non-table value",
@@ -725,12 +912,82 @@ pub fn execute_instruction(
       state.set_global(name, value)
       ExecutionResult::Continue
     }
+    @opcodes.OpCode::Vararg => {
+      // VARARG A B C: R[A], R[A+1], ..., R[A+C-2] = vararg
+      // Copy vararg values to destination registers
+      let a = instr.get_a()
+      let c = instr.get_c()
+
+      // Get current frame to access varargs
+      let frame = state.current_frame() catch {
+        _ => raise VMError::RuntimeError(message="No frame for VARARG")
+      }
+
+      // Calculate how many varargs are available
+      // Varargs start after named parameters
+      let param_count = frame.func.param_count
+      let arg_count = frame.arg_count
+      let num_available_varargs = if arg_count > param_count {
+        arg_count - param_count
+      } else {
+        0  // No varargs passed
+      }
+
+      // Determine how many varargs to copy
+      let num_to_copy = if c == 0 {
+        // C=0 means copy all available varargs
+        num_available_varargs
+      } else {
+        // C encodes count + 1, so actual count is c - 1
+        c - 1
+      }
+
+      // Ensure stack has enough space for destination registers
+      // We need space up to base + a + num_to_copy
+      let max_dest_index = base + a + num_to_copy
+      while state.stack_size() <= max_dest_index {
+        state.push(@value.TValue::nil())
+      }
+
+      // Copy varargs to destination registers
+      for i = 0; i < num_to_copy; i = i + 1 {
+        let val = if i < num_available_varargs {
+          // With special vararg layout (new_base after args), ALL arguments are BEFORE frame base
+          // Arguments: base - arg_count, base - arg_count + 1, ..., base - 1
+          // Named params: base - arg_count + 0, ..., base - arg_count + (param_count - 1)
+          // Varargs start at: base - arg_count + param_count
+          let source_index = base - arg_count + param_count + i + 1
+          let fetched_val = state.get(source_index) catch {
+            _ => @value.TValue::nil()
+          }
+          fetched_val
+        } else {
+          // Not enough varargs, use nil
+          @value.TValue::nil()
+        }
+        let write_index = base + a + i + 1
+        state.set(write_index, val) catch {
+          _ => raise VMError::RuntimeError(message="Failed to write vararg at index \{write_index}, stack size \{state.stack_size()}")
+        }
+      }
+
+      // Adjust stack size to match the number of varargs copied
+      // This ensures CALL with B=0 (variable args) only sees the values we just copied
+      // The stack should end right after the last copied vararg
+      // Last written index = base + a + (num_to_copy - 1) + 1 = base + a + num_to_copy
+      let desired_stack_size = base + a + num_to_copy
+      while state.stack_size() > desired_stack_size {
+        ignore(state.pop() catch { _ => @value.TValue::nil() })
+      }
+
+      ExecutionResult::Continue
+    }
     _ => raise VMError::InvalidOpcode(op=@opcodes.opcode_to_int(opcode))
   }
 }
 
 ///|
-/// Helper: Execute binary arithmetic operation
+/// Helper: Execute binary arithmetic operation with metamethod support
 fn execute_binary_arith(
   state : @state.LuaState,
   instr : @opcodes.Instruction,
@@ -753,20 +1010,59 @@ fn execute_binary_arith(
         message="Invalid register access in \{name} (C)",
       )
   }
-  let num_b = val_b.to_number() catch {
-    _ => raise VMError::InvalidOperation(message="\{name} requires numbers")
-  }
-  let num_c = val_c.to_number() catch {
-    _ => raise VMError::InvalidOperation(message="\{name} requires numbers")
-  }
-  let result = op(num_b, num_c)
 
-  // Check if result can be represented as integer
-  let result_val = if result == result.to_int64().to_double() {
-    @value.TValue::integer(result.to_int64())
-  } else {
-    @value.TValue::number(result)
+  // Map operation name to metamethod name
+  let metamethod_name = match name {
+    "ADD" => "__add"
+    "SUB" => "__sub"
+    "MUL" => "__mul"
+    "DIV" => "__div"
+    "IDIV" => "__idiv"
+    "MOD" => "__mod"
+    "POW" => "__pow"
+    _ => ""
   }
+
+  // Check for metamethod (try left operand first, then right)
+  let metamethod = match get_value_metamethod(val_b, metamethod_name) {
+    Some(mm) => Some(mm)
+    None => get_value_metamethod(val_c, metamethod_name)
+  }
+
+  let result_val = match metamethod {
+    Some(@value.TValue::NativeFunction(nfunc)) => {
+      // Call the native metamethod function with both operands
+      let results = call_native_function(state, nfunc.name, [val_b, val_c])
+      match results.length() {
+        0 => @value.TValue::nil()  // No result, use nil
+        _ => results[0]  // Use first result
+      }
+    }
+    Some(@value.TValue::Function(func)) => {
+      // Call the bytecode metamethod function with both operands
+      let results = call_bytecode_function(state, func, [val_b, val_c])
+      match results.length() {
+        0 => @value.TValue::nil()  // No result, use nil
+        _ => results[0]  // Use first result
+      }
+    }
+    _ => {
+      // No metamethod, perform default numeric operation
+      let num_b = val_b.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="\{name} requires numbers")
+      }
+      let num_c = val_c.to_number() catch {
+        _ => raise VMError::InvalidOperation(message="\{name} requires numbers")
+      }
+      let result = op(num_b, num_c)
+      if result == result.to_int64().to_double() {
+        @value.TValue::integer(result.to_int64())
+      } else {
+        @value.TValue::number(result)
+      }
+    }
+  }
+
   state.set(base + a + 1, result_val) catch {
     _ =>
       raise VMError::RuntimeError(
@@ -776,7 +1072,7 @@ fn execute_binary_arith(
 }
 
 ///|
-/// Helper: Execute comparison operation
+/// Helper: Execute comparison operation with metamethod support
 /// Returns true if the next instruction should be skipped
 fn execute_comparison(
   state : @state.LuaState,
@@ -801,8 +1097,43 @@ fn execute_comparison(
       )
   }
 
-  // Evaluate comparison and check against k flag
-  let comparison_result = op(val_b, val_c)
+  // Map operation name to metamethod name
+  let metamethod_name = match name {
+    "EQ" => "__eq"
+    "LT" => "__lt"
+    "LE" => "__le"
+    _ => ""
+  }
+
+  // Check for metamethod (try left operand first, then right)
+  let metamethod = match get_value_metamethod(val_b, metamethod_name) {
+    Some(mm) => Some(mm)
+    None => get_value_metamethod(val_c, metamethod_name)
+  }
+
+  let comparison_result = match metamethod {
+    Some(@value.TValue::NativeFunction(nfunc)) => {
+      // Call the native metamethod function with both operands
+      let results = call_native_function(state, nfunc.name, [val_b, val_c])
+      match results.length() {
+        0 => false  // No result, treat as false
+        _ => results[0].to_boolean()  // Convert result to boolean
+      }
+    }
+    Some(@value.TValue::Function(func)) => {
+      // Call the bytecode metamethod function with both operands
+      let results = call_bytecode_function(state, func, [val_b, val_c])
+      match results.length() {
+        0 => false  // No result, treat as false
+        _ => results[0].to_boolean()  // Convert result to boolean
+      }
+    }
+    _ => {
+      // No metamethod, perform default comparison
+      op(val_b, val_c)
+    }
+  }
+
   // Skip next instruction if (comparison_result ~= k), per Lua semantics
   comparison_result != k
 }
@@ -821,7 +1152,11 @@ fn execute_native_call(
   // b-1 is the number of arguments (b=1 means 0 args, b=2 means 1 arg, etc.)
   let nargs = if b == 0 {
     // Variable number of arguments - use all values from R[A+1] to top
-    state.stack_size() - (base + a + 2)
+    // Function is at base + a + 1 (Lua index)
+    // Arguments start at base + a + 2 (Lua index)
+    // Stack top is at stack_size
+    // Number of args = stack_size - (base + a + 2) + 1
+    state.stack_size() - base - a - 1
   } else {
     b - 1
   }
@@ -865,7 +1200,33 @@ fn call_native_function(
     }
     "tostring" => {
       let arg = if args.length() > 0 { args[0] } else { @value.TValue::nil() }
-      let str = @stdlib.tostring(arg)
+
+      // Check for __tostring metamethod on tables
+      let str = match arg {
+        @value.TValue::Table(t) => {
+          match get_metamethod(t, "__tostring") {
+            Some(@value.TValue::NativeFunction(nfunc)) => {
+              // Call the native __tostring metamethod
+              let results = call_native_function(state, nfunc.name, [arg])
+              match results.length() {
+                0 => @stdlib.tostring(arg)  // No result, use default
+                _ => results[0].to_string()  // Convert result to string
+              }
+            }
+            Some(@value.TValue::Function(func)) => {
+              // Call the bytecode __tostring metamethod
+              let results = call_bytecode_function(state, func, [arg])
+              match results.length() {
+                0 => @stdlib.tostring(arg)  // No result, use default
+                _ => results[0].to_string()  // Convert result to string
+              }
+            }
+            _ => @stdlib.tostring(arg)
+          }
+        }
+        _ => @stdlib.tostring(arg)
+      }
+
       [@value.TValue::string(str)]
     }
     "tonumber" => {
@@ -908,6 +1269,55 @@ fn call_native_function(
         "error"
       }
       raise VMError::RuntimeError(message=message)
+    }
+    "select" => {
+      // select(index, ...) - Returns all arguments after index
+      // select("#", ...) - Returns count of arguments (excluding the "#")
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="select requires at least 1 argument")
+      }
+
+      match args[0] {
+        @value.TValue::String(s) => {
+          if s == "#" {
+            // Return count of remaining arguments
+            [@value.TValue::integer((args.length() - 1).to_int64())]
+          } else {
+            raise VMError::InvalidOperation(message="select: string index must be '#'")
+          }
+        }
+        @value.TValue::Integer(_) | @value.TValue::Number(_) => {
+          // Get the index as integer
+          let idx = match args[0] {
+            @value.TValue::Integer(i) => i.to_int()
+            @value.TValue::Number(num) => num.to_int()
+            _ => 1  // Shouldn't happen
+          }
+
+          // Lua allows negative indices: -1 is the last arg, -2 is second-to-last, etc.
+          let actual_idx = if idx < 0 {
+            // Negative index: count from the end
+            // Total args (excluding select's first arg) = args.length() - 1
+            // -1 should point to last arg, which is at position args.length() - 1
+            args.length() + idx
+          } else {
+            idx
+          }
+
+          // Check bounds
+          if actual_idx < 1 || actual_idx > args.length() - 1 {
+            raise VMError::InvalidOperation(message="select: index out of range")
+          }
+
+          // Return all arguments from actual_idx onwards
+          let result : Array[@value.TValue] = []
+          for i = actual_idx; i < args.length(); i = i + 1 {
+            result.push(args[i])
+          }
+          result
+        }
+        _ => raise VMError::InvalidOperation(message="select: index must be a number or '#'")
+      }
     }
     // Raw table access functions (bypass metatables)
     "rawget" => {
@@ -956,6 +1366,38 @@ fn call_native_function(
         _ => raise VMError::InvalidOperation(message="rawlen requires string or table")
       }
       [@value.TValue::number(length.to_double())]
+    }
+    // Metatable functions
+    "setmetatable" => {
+      // setmetatable(table, metatable) - Set metatable for a table
+      if args.length() < 2 {
+        raise VMError::InvalidOperation(message="setmetatable requires 2 arguments")
+      }
+      let table = match args[0] {
+        @value.TValue::Table(t) => t
+        _ => raise VMError::InvalidOperation(message="setmetatable: first argument must be a table")
+      }
+
+      // Metatable must be nil or a table
+      let metatable = args[1]
+      match metatable {
+        @value.TValue::Nil | @value.TValue::Table(_) => {
+          table.set_metatable(metatable)
+          [args[0]]  // Returns the table
+        }
+        _ => raise VMError::InvalidOperation(message="setmetatable: second argument must be nil or a table")
+      }
+    }
+    "getmetatable" => {
+      // getmetatable(object) - Get metatable of an object
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="getmetatable requires an argument")
+      }
+
+      match args[0] {
+        @value.TValue::Table(t) => [t.get_metatable()]
+        _ => [@value.TValue::nil()]  // Non-tables return nil (for now)
+      }
     }
     // Iteration functions
     "next" => {
@@ -1596,12 +2038,178 @@ fn call_native_function(
       }
       [@value.TValue::string(result)]
     }
+    "string.rep" => {
+      if args.length() < 2 {
+        raise VMError::InvalidOperation(message="string.rep requires 2 arguments")
+      }
+      let n = try {
+        args[1].to_integer().to_int()
+      } catch {
+        _ => raise VMError::InvalidOperation(message="string.rep repetition count must be a number")
+      }
+      let result = try {
+        @stdlib.string_rep(args[0], n)
+      } catch {
+        err => raise VMError::RuntimeError(message="string.rep failed: \{err}")
+      }
+      [@value.TValue::string(result)]
+    }
+    "string.reverse" => {
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="string.reverse requires a string argument")
+      }
+      let result = try {
+        @stdlib.string_reverse(args[0])
+      } catch {
+        err => raise VMError::RuntimeError(message="string.reverse failed: \{err}")
+      }
+      [@value.TValue::string(result)]
+    }
     _ => {
       // Ignore set_global for now - it's used during initialization
       ignore(state)
       raise VMError::RuntimeError(message="Unknown native function: \{name}")
     }
   }
+}
+
+///|
+/// Call a bytecode function with given arguments
+/// This is used for metamethods which need synchronous function calls
+/// Returns an array of result values
+fn call_bytecode_function(
+  state : @state.LuaState,
+  func : @value.FunctionValue,
+  args : Array[@value.TValue],
+) -> Array[@value.TValue] raise VMError {
+  // Save current call depth to know when the function returns
+  let initial_depth = state.call_depth()
+
+  // Save current stack size to know where to place function and args
+  let call_base = state.stack_size()
+
+  // Push function onto stack
+  state.push(@value.TValue::function(func))
+
+  // Push arguments onto stack
+  for arg in args {
+    state.push(arg)
+  }
+
+  let arg_count = args.length()
+  let param_count = func.param_count
+
+  // Calculate new_base for the function
+  // For vararg functions: registers start after all arguments
+  // For normal functions: registers start after the function
+  let new_base = if func.is_vararg {
+    call_base + 1 + arg_count
+  } else {
+    call_base + 1
+  }
+
+  // Ensure stack space for new frame
+  let max_register = calculate_max_register(func.code)
+  while state.stack_size() <= new_base + max_register {
+    state.push(@value.TValue::nil())
+  }
+
+  // For vararg functions: copy named parameters to register positions
+  if func.is_vararg {
+    for i = 0; i < param_count && i < arg_count; i = i + 1 {
+      let arg_pos = call_base + 1 + i
+      let reg_pos = new_base + i + 1
+      let val = state.get(arg_pos + 1) catch { _ => @value.TValue::nil() }
+      state.set(reg_pos, val) catch { _ => () }
+    }
+  }
+
+  // Initialize missing parameters to nil
+  for i = arg_count; i < param_count; i = i + 1 {
+    state.set(new_base + i + 1, @value.TValue::nil()) catch {
+      _ => ()
+    }
+  }
+
+  // Push new call frame
+  state.push_frame(func, new_base, 0, arg_count) catch {
+    _ => raise VMError::RuntimeError(message="Failed to push metamethod call frame")
+  }
+
+  // Execute instructions until the function returns
+  // This is a mini-execution loop similar to the main execute() function
+  let mut instruction_count = 0
+  while state.call_depth() > initial_depth {
+    instruction_count = instruction_count + 1
+    if instruction_count > 100 {
+      raise VMError::RuntimeError(message="Too many instructions in metamethod (possible infinite loop)")
+    }
+
+    let frame = state.current_frame() catch {
+      _ => raise VMError::RuntimeError(message="No active frame in metamethod call")
+    }
+
+    // Check if we've finished executing this frame
+    if frame.pc >= frame.func.code.length() {
+      // Implicit return at end of function
+      execute_return(state, frame.base, 1)
+      continue
+    }
+
+    let instr = frame.func.code[frame.pc]
+    let constants = frame.func.constants
+
+    // Execute instruction
+    let result = execute_instruction(state, instr, constants, frame.base)
+
+    // Update PC based on execution result
+    match result {
+      ExecutionResult::Continue =>
+        state.update_pc(frame.pc + 1) catch {
+          _ => raise VMError::RuntimeError(message="Failed to update PC in metamethod")
+        }
+      ExecutionResult::Jump(offset) =>
+        state.update_pc(frame.pc + 1 + offset) catch {
+          _ => raise VMError::RuntimeError(message="Failed to jump in metamethod")
+        }
+      ExecutionResult::Call => {
+        // Nested call - just continue with the new frame
+        ()
+      }
+      ExecutionResult::Return => {
+        // Return handled, will exit loop if back to initial depth
+        ()
+      }
+    }
+  }
+
+  // Collect results from the stack
+  // Results should be at call_base + 1 onwards
+  let results : Array[@value.TValue] = []
+
+  // Try to get at least one result, more if available
+  // We'll collect all non-nil results starting from call_base + 1
+  for i = 0; i < 10; i = i + 1 {  // Arbitrary limit of 10 results
+    let val = state.get(call_base + 1 + i) catch {
+      _ => break  // Can't read more results
+    }
+    // Stop at first nil (unless it's the only result)
+    if val.is_nil() && i > 0 {
+      break
+    }
+    results.push(val)
+    if val.is_nil() {
+      break  // Stop after first nil
+    }
+  }
+
+  // Clean up stack - remove function, args, and results
+  // Reset stack to where it was before the call
+  while state.stack_size() > call_base {
+    ignore(state.pop() catch { _ => @value.TValue::nil() })
+  }
+
+  results
 }
 
 ///|
@@ -1634,8 +2242,28 @@ fn execute_call(
         _ => raise VMError::RuntimeError(message="Failed to advance caller PC")
       }
 
-      // New frame starts right after the function (at R[A+1])
-      let new_base = base + a + 1
+      // Calculate argument count
+      // B=0 means variable arguments (use all values from R[A+1] to stack top)
+      // B>0 means B-1 arguments
+      let arg_count = if b == 0 {
+        // Variable arguments: count from R[A+1] to stack top
+        // Function is at base + a (stack position), Lua index base + a + 1
+        // Arguments start at Lua index base + a + 2
+        // Stack top is at Lua index stack_size
+        // Number of arguments = stack_size - (base + a + 2) + 1 = stack_size - base - a - 1
+        state.stack_size() - base - a - 1
+      } else {
+        b - 1
+      }
+      let param_count = func.param_count
+
+      // For vararg functions: registers start after all arguments to prevent overwriting
+      // For normal functions: registers start after the function
+      let new_base = if func.is_vararg {
+        base + a + 1 + arg_count
+      } else {
+        base + a + 1
+      }
 
       // Ensure stack space for new frame
       let max_register = calculate_max_register(func.code)
@@ -1643,12 +2271,20 @@ fn execute_call(
         state.push(@value.TValue::nil())
       }
 
+      // For vararg functions with special layout (new_base after args):
+      // Copy named parameters from argument positions to register positions
+      if func.is_vararg {
+        // Arguments are at base + a + 1 + i, but registers are at new_base + i + 1
+        // Copy named parameters to their register positions
+        for i = 0; i < param_count && i < arg_count; i = i + 1 {
+          let arg_pos = base + a + 1 + i
+          let reg_pos = new_base + i + 1
+          let val = state.get(arg_pos + 1) catch { _ => @value.TValue::nil() }
+          state.set(reg_pos, val) catch { _ => () }
+        }
+      }
+
       // Initialize missing parameters to nil
-      // B = arg_count + 1, so actual arg_count = b - 1
-      let arg_count = b - 1
-      let param_count = func.param_count
-      // Arguments are at new_base + 0, ..., new_base + (arg_count - 1)
-      // Missing parameters are from new_base + arg_count to new_base + (param_count - 1)
       for i = arg_count; i < param_count; i = i + 1 {
         state.set(new_base + i + 1, @value.TValue::nil()) catch {
           _ => ()  // Ignore errors
@@ -1656,7 +2292,7 @@ fn execute_call(
       }
 
       // Push new call frame
-      state.push_frame(func, new_base, c) catch {
+      state.push_frame(func, new_base, c, arg_count) catch {
         _ => raise VMError::RuntimeError(message="Failed to push call frame")
       }
       ExecutionResult::Call
@@ -1666,10 +2302,109 @@ fn execute_call(
       execute_native_call(state, nfunc.name, a, b, c, base)
       ExecutionResult::Continue  // Native function executed inline, just continue
     }
-    _ =>
-      raise VMError::InvalidOperation(
-        message="Attempt to call non-function value",
-      )
+    _ => {
+      // Check for __call metamethod
+      match get_value_metamethod(func_val, "__call") {
+        Some(@value.TValue::NativeFunction(nfunc)) => {
+          // Call the native __call metamethod
+          // __call receives the object as first argument, followed by call arguments
+          // So we need to insert func_val as first argument
+
+          // Calculate argument count
+          let arg_count = if b == 0 {
+            state.stack_size() - base - a - 1
+          } else {
+            b - 1
+          }
+
+          // Collect arguments including the object itself
+          let call_args : Array[@value.TValue] = [func_val]  // Object is first arg
+          for i = 0; i < arg_count; i = i + 1 {
+            let arg = state.get(base + a + 2 + i) catch {
+              _ => @value.TValue::nil()
+            }
+            call_args.push(arg)
+          }
+
+          // Call the metamethod
+          let results = call_native_function(state, nfunc.name, call_args)
+
+          // Store results starting at R[A]
+          for i = 0; i < results.length(); i = i + 1 {
+            state.set(base + a + 1 + i, results[i]) catch {
+              _ => ()
+            }
+          }
+
+          ExecutionResult::Continue
+        }
+        Some(@value.TValue::Function(func)) => {
+          // Call the bytecode __call metamethod
+          // __call receives the object as first argument, followed by call arguments
+
+          // Calculate argument count
+          let arg_count = if b == 0 {
+            state.stack_size() - base - a - 1
+          } else {
+            b - 1
+          }
+
+          // Collect arguments including the object itself
+          let call_args : Array[@value.TValue] = [func_val]  // Object is first arg
+          for i = 0; i < arg_count; i = i + 1 {
+            let arg = state.get(base + a + 2 + i) catch {
+              _ => @value.TValue::nil()
+            }
+            call_args.push(arg)
+          }
+
+          // Call the metamethod
+          let results = call_bytecode_function(state, func, call_args)
+
+          // Store results starting at R[A]
+          for i = 0; i < results.length(); i = i + 1 {
+            state.set(base + a + 1 + i, results[i]) catch {
+              _ => ()
+            }
+          }
+
+          ExecutionResult::Continue
+        }
+        _ => {
+          // No __call metamethod, raise error
+          raise VMError::InvalidOperation(
+            message="Attempt to call non-function value",
+          )
+        }
+      }
+    }
+  }
+}
+
+///|
+/// Get a metamethod from a table's metatable
+/// Returns Some(metamethod) if found, None otherwise
+fn get_metamethod(table : @value.Table, method_name : String) -> @value.TValue? {
+  let metatable = table.get_metatable()
+  match metatable {
+    @value.TValue::Table(mt) => {
+      let method = mt.get_string(method_name)
+      match method {
+        @value.TValue::Nil => None
+        _ => Some(method)
+      }
+    }
+    _ => None
+  }
+}
+
+///|
+/// Get a metamethod from any value's metatable
+/// Returns Some(metamethod) if found, None otherwise
+fn get_value_metamethod(value : @value.TValue, method_name : String) -> @value.TValue? {
+  match value {
+    @value.TValue::Table(t) => get_metamethod(t, method_name)
+    _ => None  // Other types don't support metatables yet
   }
 }
 
@@ -1697,27 +2432,45 @@ fn execute_return(
   }
 
   // Copy return values to caller's expected location
-  // frame.base is the callee's base, which points to the function position in caller
-  // Results should be placed starting at the function position
+  // Calculate where the function was in the caller (where to write return values)
+  // Result should be a Lua index (1-based) for use with state.set()
+  // For vararg functions: base is AFTER arguments, so function Lua index = base - arg_count
+  // For non-vararg functions: base is AT function + 1, so function Lua index = base
+  let return_pos = if frame.func.is_vararg {
+    frame.base - frame.arg_count
+  } else {
+    frame.base
+  }
 
-  // In Lua, a function always returns at least one value
-  // If count=0 (no explicit return values), return nil
-  let actual_count = if count == 0 { 1 } else { count }
+  // In Lua, B=0 in RETURN means "return all values from R[A] to top of stack"
+  // B>0 means return B values
+  let actual_count = if count == 0 {
+    // B=0: Return all values from start to top of stack
+    // Stack positions are 1-indexed in our get/set, so calculate count
+    let stack_top = state.stack_size()
+    if stack_top > start {
+      stack_top - start
+    } else {
+      1  // At least return nil
+    }
+  } else {
+    count
+  }
 
   for i = 0; i < actual_count; i = i + 1 {
-    let val = if i < count {
-      // Explicit return value exists
+    let val = if count == 0 || i < count {
+      // B=0 means return all values, or i is within explicit count
       state.get(start + i + 1) catch {
         _ => @value.TValue::nil()
       }
     } else {
-      // No more return values, use nil
+      // i >= count (only happens when count > 0 and we need to pad with nils)
       @value.TValue::nil()
     }
     // Results are placed starting at the function position in caller
-    state.set(frame.base + i, val) catch {
+    state.set(return_pos + i, val) catch {
       _ =>
-        raise VMError::RuntimeError(message="Failed to write return value")
+        raise VMError::RuntimeError(message="Failed to write return value at index \{return_pos + i}, stack_size=\{state.stack_size()}, return_pos=\{return_pos}, i=\{i}")
     }
   }
 }

@@ -328,6 +328,57 @@ pub fn string_lower(s : @value.TValue) -> String raise StdlibError {
 }
 
 ///|
+/// string.rep(s, n) - Repeat a string n times
+pub fn string_rep(s : @value.TValue, n : Int) -> String raise StdlibError {
+  match s {
+    @value.TValue::String(str) => {
+      if n < 0 {
+        raise StdlibError::InvalidArgument(
+          func="string.rep",
+          arg=2,
+          message="negative repetition count",
+        )
+      }
+      if n == 0 {
+        return ""
+      }
+      let mut result = ""
+      for _i = 0; _i < n; _i = _i + 1 {
+        result = result + str
+      }
+      result
+    }
+    _ =>
+      raise StdlibError::TypeMismatch(
+        func="string.rep",
+        expected="string",
+        actual=type_(s),
+      )
+  }
+}
+
+///|
+/// string.reverse(s) - Reverse a string
+pub fn string_reverse(s : @value.TValue) -> String raise StdlibError {
+  match s {
+    @value.TValue::String(str) => {
+      let len = str.length()
+      let mut result = ""
+      for i = len - 1; i >= 0; i = i - 1 {
+        result = result + str[i].to_int().unsafe_to_char().to_string()
+      }
+      result
+    }
+    _ =>
+      raise StdlibError::TypeMismatch(
+        func="string.reverse",
+        expected="string",
+        actual=type_(s),
+      )
+  }
+}
+
+///|
 /// string.find(s, pattern, init) - Find substring
 /// Simplified version: only supports plain string search
 pub fn string_find(
@@ -706,12 +757,17 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   state.set_global("tostring", @value.TValue::native_function("tostring"))
   state.set_global("assert", @value.TValue::native_function("assert"))
   state.set_global("error", @value.TValue::native_function("error"))
+  state.set_global("select", @value.TValue::native_function("select"))
 
   // Raw table access functions (bypass metatables)
   state.set_global("rawget", @value.TValue::native_function("rawget"))
   state.set_global("rawset", @value.TValue::native_function("rawset"))
   state.set_global("rawequal", @value.TValue::native_function("rawequal"))
   state.set_global("rawlen", @value.TValue::native_function("rawlen"))
+
+  // Metatable functions
+  state.set_global("setmetatable", @value.TValue::native_function("setmetatable"))
+  state.set_global("getmetatable", @value.TValue::native_function("getmetatable"))
 
   // Iteration functions
   state.set_global("next", @value.TValue::native_function("next"))
@@ -765,6 +821,8 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   string_table.set_string("find", @value.TValue::native_function("string.find"))
   string_table.set_string("gsub", @value.TValue::native_function("string.gsub"))
   string_table.set_string("format", @value.TValue::native_function("string.format"))
+  string_table.set_string("rep", @value.TValue::native_function("string.rep"))
+  string_table.set_string("reverse", @value.TValue::native_function("string.reverse"))
 
   state.set_global("string", @value.TValue::table(string_table))
 }

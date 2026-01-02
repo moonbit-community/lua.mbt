@@ -71,6 +71,9 @@ pub(all) enum OpCode {
   // Globals
   GetGlobal // R[A] := Globals[K[Bx]]
   SetGlobal // Globals[K[Bx]] := R[A]
+
+  // Varargs
+  Vararg // R[A], R[A+1], ..., R[A+C-2] = vararg
 } derive(Eq, Show, ToJson)
 
 ///|

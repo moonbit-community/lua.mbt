@@ -9,6 +9,7 @@ pub struct CallFrame {
   base : Int  // Base stack index for this frame
   mut pc : Int  // Program counter within this frame
   num_results : Int  // Number of expected results
+  arg_count : Int  // Number of arguments passed to this function
 } derive(Show)
 
 ///|
@@ -17,8 +18,9 @@ pub fn CallFrame::new(
   func : @value.FunctionValue,
   base : Int,
   num_results : Int,
+  arg_count : Int,
 ) -> CallFrame {
-  CallFrame::{ func, base, pc: 0, num_results }
+  CallFrame::{ func, base, pc: 0, num_results, arg_count }
 }
 
 ///|
@@ -151,8 +153,9 @@ pub fn LuaState::push_frame(
   func : @value.FunctionValue,
   base : Int,
   num_results : Int,
+  arg_count : Int,
 ) -> Unit {
-  let frame = CallFrame::new(func, base, num_results)
+  let frame = CallFrame::new(func, base, num_results, arg_count)
   self.call_stack.push(frame)
 }
 

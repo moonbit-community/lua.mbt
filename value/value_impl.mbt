@@ -9,6 +9,7 @@ pub struct FunctionValue {
   constants : Array[TValue]
   upvalues : Array[TValue]
   param_count : Int  // Number of parameters this function expects
+  is_vararg : Bool   // Whether this function accepts varargs
 } derive(Show)
 
 ///|
@@ -17,7 +18,7 @@ pub fn FunctionValue::new(
   code : Array[@opcodes.Instruction],
   constants : Array[TValue],
 ) -> FunctionValue {
-  FunctionValue::{ code, constants, upvalues: [], param_count: 0 }
+  FunctionValue::{ code, constants, upvalues: [], param_count: 0, is_vararg: false }
 }
 
 ///|
@@ -27,7 +28,18 @@ pub fn FunctionValue::new_with_params(
   constants : Array[TValue],
   param_count : Int,
 ) -> FunctionValue {
-  FunctionValue::{ code, constants, upvalues: [], param_count }
+  FunctionValue::{ code, constants, upvalues: [], param_count, is_vararg: false }
+}
+
+///|
+/// Create a new function value with full parameters
+pub fn FunctionValue::new_full(
+  code : Array[@opcodes.Instruction],
+  constants : Array[TValue],
+  param_count : Int,
+  is_vararg : Bool,
+) -> FunctionValue {
+  FunctionValue::{ code, constants, upvalues: [], param_count, is_vararg }
 }
 
 ///|
@@ -51,6 +63,7 @@ pub struct Table {
   id : Int  // Unique ID for reference equality
   array : Array[TValue]  // Array part for integer keys
   hash : Map[String, TValue]  // Hash part for string keys
+  mut metatable : TValue  // Metatable for this table (Nil or another Table)
 } derive(Show)
 
 // Generate unique table IDs using a counter
@@ -65,7 +78,7 @@ fn next_table_id() -> Int {
 ///|
 /// Create a new empty table with a unique ID
 pub fn Table::new() -> Table {
-  Table::{ id: next_table_id(), array: [], hash: {} }
+  Table::{ id: next_table_id(), array: [], hash: {}, metatable: TValue::Nil }
 }
 
 ///|
@@ -197,6 +210,18 @@ pub fn Table::length(self : Table) -> Int {
   }
   // All elements are nil (or array is empty)
   0
+}
+
+///|
+/// Get the metatable of this table
+pub fn Table::get_metatable(self : Table) -> TValue {
+  self.metatable
+}
+
+///|
+/// Set the metatable of this table
+pub fn Table::set_metatable(self : Table, mt : TValue) -> Unit {
+  self.metatable = mt
 }
 
 ///|

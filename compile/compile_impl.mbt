@@ -104,6 +104,9 @@ pub struct Compiler {
 
   // Stack of break jump positions for nested loops
   break_jumps : Array[Array[Int]]
+
+  // Is this function a vararg function?
+  mut is_vararg : Bool
 } derive(Show)
 
 ///|
@@ -119,6 +122,7 @@ pub fn Compiler::new() -> Compiler {
     scope_register_base: [],
     jump_labels: [],
     break_jumps: [],
+    is_vararg: false,
   }
 }
 
@@ -816,6 +820,7 @@ pub fn Compiler::compile_stmt(
     @parse.Stmt::FunctionDef(name, params, is_vararg, body) => {
       // Compile function body in a new compiler
       let func_compiler = Compiler::new()
+      func_compiler.is_vararg = is_vararg
 
       // Register parameters as locals (starting at register 0)
       for param in params {
@@ -827,10 +832,11 @@ pub fn Compiler::compile_stmt(
 
       // Get the function code and constants
       let proto = func_compiler.finish()
-      let func_value = @value.FunctionValue::new_with_params(
+      let func_value = @value.FunctionValue::new_full(
         proto.code(),
         proto.constants,
         params.length(),
+        is_vararg,
       )
 
       // Add function to constants
@@ -909,6 +915,7 @@ pub fn Compiler::compile_stmt(
 
       // Compile function body
       let func_compiler = Compiler::new()
+      func_compiler.is_vararg = is_vararg
 
       // Register parameters as locals (starting at register 0)
       // Note: Recursion won't work yet - needs upvalues/closures
@@ -921,10 +928,11 @@ pub fn Compiler::compile_stmt(
 
       // Get the function code and constants
       let proto = func_compiler.finish()
-      let func_value = @value.FunctionValue::new_with_params(
+      let func_value = @value.FunctionValue::new_full(
         proto.code(),
         proto.constants,
         params.length(),
+        is_vararg,
       )
 
       // Add function to constants and load it
@@ -936,37 +944,79 @@ pub fn Compiler::compile_stmt(
       // Compile function expression
       let func_reg = self.compile_expr(func_expr)
 
-      // Compile arguments and place them after function
-      let arg_count = args.length()
-      for i = 0; i < arg_count; i = i + 1 {
-        let arg_reg = self.compile_expr(args[i])
-        let expected_reg = func_reg + i + 1
-
-        // If argument isn't in the expected position, move it
-        if arg_reg != expected_reg {
-          self.emit(
-            @opcodes.Instruction::abc(
-              @opcodes.OpCode::Move,
-              expected_reg,
-              arg_reg,
-              0,
-              false,
-            ),
-          )
-          // Ensure next_register is past this position
-          while self.next_register <= expected_reg {
-            self.next_register = self.next_register + 1
-          }
+      // Check if last argument is varargs
+      let has_varargs = if args.length() > 0 {
+        match args[args.length() - 1] {
+          @parse.Expr::Vararg => true
+          _ => false
         }
+      } else {
+        false
       }
 
-      // Emit CALL instruction: CALL func_reg arg_count result_count
-      //Note: In Lua CALL instruction, B = number of arguments + 1
+      let arg_count = if has_varargs {
+        // Compile fixed arguments (all except last)
+        for i = 0; i < args.length() - 1; i = i + 1 {
+          let arg_reg = self.compile_expr(args[i])
+          let expected_reg = func_reg + i + 1
+          if arg_reg != expected_reg {
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::Move,
+                expected_reg,
+                arg_reg,
+                0,
+                false,
+              ),
+            )
+            while self.next_register <= expected_reg {
+              self.next_register = self.next_register + 1
+            }
+          }
+        }
+
+        // Emit VARARG to load all varargs starting after fixed args
+        let vararg_start = func_reg + args.length()
+        self.emit(
+          @opcodes.Instruction::abc(
+            @opcodes.OpCode::Vararg,
+            vararg_start,
+            0,
+            0,  // C=0 means copy all available varargs
+            false,
+          ),
+        )
+
+        0  // B=0 means variable arguments for CALL
+      } else {
+        // No varargs - compile all arguments normally
+        for i = 0; i < args.length(); i = i + 1 {
+          let arg_reg = self.compile_expr(args[i])
+          let expected_reg = func_reg + i + 1
+          if arg_reg != expected_reg {
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::Move,
+                expected_reg,
+                arg_reg,
+                0,
+                false,
+              ),
+            )
+            while self.next_register <= expected_reg {
+              self.next_register = self.next_register + 1
+            }
+          }
+        }
+        args.length() + 1  // B = arg_count + 1 (Lua convention)
+      }
+
+      // Emit CALL instruction
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Call,
           func_reg,
-          arg_count + 1, // B = arg_count + 1 (Lua convention)
+          arg_count, // B=0 for varargs, or arg_count+1 for fixed args
           0, // 0 means no return values expected for statement
           false,
         ),
@@ -1055,6 +1105,17 @@ pub fn Compiler::compile_stmt(
       let return_count = exprs.length()
       let mut start_reg = 0
 
+      // Check if the last expression is a vararg (...)
+      // If so, we need to use B=0 in RETURN to return all values
+      let last_is_vararg = if return_count > 0 {
+        match exprs[return_count - 1] {
+          @parse.Expr::Vararg => true
+          _ => false
+        }
+      } else {
+        false
+      }
+
       if return_count > 0 {
         // Compile first return value to know starting register
         start_reg = self.compile_expr(exprs[0])
@@ -1084,11 +1145,14 @@ pub fn Compiler::compile_stmt(
       }
 
       // Emit RETURN instruction
+      // If last expression is vararg, use B=0 to return all values from start_reg to top
+      // Otherwise, use B=return_count to return exactly that many values
+      let b_value = if last_is_vararg { 0 } else { return_count }
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Return,
           start_reg,
-          return_count,
+          b_value,
           0,
           false,
         ),
@@ -1587,6 +1651,20 @@ pub fn Compiler::compile_expr(
       )
       result_reg
     }
+    @parse.Expr::Neg(operand) => {
+      let operand_reg = self.compile_expr(operand)
+      let result_reg = self.alloc_register()
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Unm,
+          result_reg,
+          operand_reg,
+          0,
+          false,
+        ),
+      )
+      result_reg
+    }
     @parse.Expr::Len(operand) => {
       let operand_reg = self.compile_expr(operand)
       let result_reg = self.alloc_register()
@@ -1918,37 +1996,83 @@ pub fn Compiler::compile_expr(
         func_reg = new_func_reg
       }
 
-      // Compile arguments and ensure they're in consecutive registers after func_reg
-      let arg_count = args.length()
-      for i = 0; i < arg_count; i = i + 1 {
-        let arg_reg = self.compile_expr(args[i])
-        let expected_reg = func_reg + i + 1
+      // Check if last argument is varargs
+      let has_varargs = if args.length() > 0 {
+        match args[args.length() - 1] {
+          @parse.Expr::Vararg => true
+          _ => false
+        }
+      } else {
+        false
+      }
 
-        // If argument isn't in the expected position, move it
-        if arg_reg != expected_reg {
-          self.emit(
-            @opcodes.Instruction::abc(
-              @opcodes.OpCode::Move,
-              expected_reg,
-              arg_reg,
-              0,
-              false,
-            ),
-          )
-          // Ensure next_register is past this position
-          while self.next_register <= expected_reg {
-            self.next_register = self.next_register + 1
+      let arg_count = if has_varargs {
+        // Compile fixed arguments (all except last which is ...)
+        for i = 0; i < args.length() - 1; i = i + 1 {
+          let arg_reg = self.compile_expr(args[i])
+          let expected_reg = func_reg + i + 1
+          if arg_reg != expected_reg {
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::Move,
+                expected_reg,
+                arg_reg,
+                0,
+                false,
+              ),
+            )
+            while self.next_register <= expected_reg {
+              self.next_register = self.next_register + 1
+            }
           }
         }
+
+        // Emit VARARG to load all varargs starting after fixed args
+        let vararg_start = func_reg + args.length()
+        self.emit(
+          @opcodes.Instruction::abc(
+            @opcodes.OpCode::Vararg,
+            vararg_start,
+            0,
+            0,  // C=0 means copy all available varargs
+            false,
+          ),
+        )
+
+        0  // B=0 means variable arguments for CALL
+      } else {
+        // No varargs - compile all arguments normally
+        for i = 0; i < args.length(); i = i + 1 {
+          let arg_reg = self.compile_expr(args[i])
+          let expected_reg = func_reg + i + 1
+
+          // If argument isn't in the expected position, move it
+          if arg_reg != expected_reg {
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::Move,
+                expected_reg,
+                arg_reg,
+                0,
+                false,
+              ),
+            )
+            // Ensure next_register is past this position
+            while self.next_register <= expected_reg {
+              self.next_register = self.next_register + 1
+            }
+          }
+        }
+        args.length() + 1  // B = arg_count + 1 (Lua convention)
       }
 
       // Emit CALL instruction: function expects 1 return value
-      // Note: In Lua CALL instruction, B = number of arguments + 1
+      // Note: In Lua CALL instruction, B = number of arguments + 1 (or 0 for varargs)
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Call,
           func_reg,
-          arg_count + 1, // B = arg_count + 1 (Lua convention)
+          arg_count, // B=0 for varargs, or arg_count+1 for fixed args
           1, // Expect 1 return value
           false,
         ),
@@ -2299,6 +2423,7 @@ pub fn Compiler::compile_expr(
       // Compile anonymous function expression
       // Create a new compiler for the function body
       let func_compiler = Compiler::new()
+      func_compiler.is_vararg = is_vararg
 
       // Register parameters as locals (starting at register 0)
       for param in params {
@@ -2310,10 +2435,11 @@ pub fn Compiler::compile_expr(
 
       // Get the function code and constants
       let proto = func_compiler.finish()
-      let func_value = @value.FunctionValue::new_with_params(
+      let func_value = @value.FunctionValue::new_full(
         proto.code(),
         proto.constants,
         params.length(),
+        is_vararg,
       )
 
       // Add function to constants
@@ -2324,6 +2450,34 @@ pub fn Compiler::compile_expr(
       self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, func_const_idx))
 
       func_reg
+    }
+    @parse.Expr::Vararg => {
+      // Varargs: ... (only valid inside vararg functions)
+      // VARARG A C: R[A], R[A+1], ..., R[A+C-2] = vararg
+      // For now, we'll emit VARARG with C=0, which means copy all varargs
+      // In context where we need a specific number, this will be optimized later
+
+      // Check if we're in a vararg function
+      if !self.is_vararg {
+        raise CompileError::InvalidSyntax(
+          message="cannot use '...' outside a vararg function",
+          line=0,
+        )
+      }
+
+      let result_reg = self.alloc_register()
+      // VARARG result_reg 0: Copy all varargs starting at result_reg
+      // C=0 means all varargs
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Vararg,
+          result_reg,
+          0,
+          0,  // C=0 means all varargs
+          false,
+        ),
+      )
+      result_reg
     }
     _ => {
       // For unimplemented expressions, just return a nil

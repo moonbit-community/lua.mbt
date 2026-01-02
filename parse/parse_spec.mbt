@@ -54,6 +54,9 @@ pub(all) enum Expr {
   Or(Expr, Expr)
   Not(Expr)
 
+  // Unary arithmetic
+  Neg(Expr) // -expr (unary minus)
+
   // Other
   Concat(Expr, Expr) // ..
   Len(Expr) // #expr
