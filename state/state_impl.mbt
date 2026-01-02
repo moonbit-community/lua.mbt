@@ -35,6 +35,11 @@ pub struct LuaState {
   // Call stack
   call_stack : Array[CallFrame]
 
+  // Open upvalues - tracked by stack index
+  // Maps stack index -> upvalue reference
+  // Used to ensure multiple closures share the same upvalue for the same stack slot
+  open_upvalues : Map[Int, @value.Upvalue]
+
   // Optional compiler callback for dynamic code compilation (load())
   // Set by API layer during initialization to avoid circular dependencies
   mut compiler : ((String) -> @value.TValue raise StateError)?
@@ -48,14 +53,20 @@ pub impl Show for LuaState with output(self, logger) {
     None => "None"
   }
   logger.write_string(
-    "LuaState { stack: \{self.stack}, globals: \{self.globals}, call_stack: \{self.call_stack}, compiler: \{compiler_str} }",
+    "LuaState { stack: \{self.stack}, globals: \{self.globals}, call_stack: \{self.call_stack}, open_upvalues: \{self.open_upvalues}, compiler: \{compiler_str} }",
   )
 }
 
 ///|
 /// Create a new Lua state
 pub fn LuaState::new() -> LuaState {
-  LuaState::{ stack: [], globals: {}, call_stack: [], compiler: None }
+  LuaState::{
+    stack: [],
+    globals: {},
+    call_stack: [],
+    open_upvalues: {},
+    compiler: None,
+  }
 }
 
 ///|
@@ -246,5 +257,51 @@ pub fn LuaState::update_pc(self : LuaState, new_pc : Int) -> Unit raise StateErr
     self.call_stack[len - 1].pc = new_pc
   } else {
     raise StateError::NoActiveFrame
+  }
+}
+
+///|
+/// Get or create an open upvalue for a stack index
+/// If an open upvalue already exists for this index, reuse it
+/// Otherwise create a new one and track it
+pub fn LuaState::find_or_create_upvalue(
+  self : LuaState,
+  stack_index : Int,
+) -> @value.Upvalue {
+  match self.open_upvalues.get(stack_index) {
+    Some(uv) => uv
+    None => {
+      let uv = @value.upvalue_open(stack_index)
+      self.open_upvalues[stack_index] = uv
+      uv
+    }
+  }
+}
+
+///|
+/// Close all open upvalues at or above the given stack index
+/// Converts them from Open to Closed, capturing their current values
+pub fn LuaState::close_upvalues(
+  self : LuaState,
+  stack_index : Int,
+) -> Unit raise StateError {
+  // Collect indices to remove (can't modify map while iterating)
+  let to_close : Array[Int] = []
+
+  for entry in self.open_upvalues {
+    let (idx, uv) = entry
+    if idx >= stack_index {
+      to_close.push(idx)
+      // Capture the current stack value and close the upvalue
+      let value = self.get(idx) catch {
+        _ => @value.TValue::nil()
+      }
+      @value.upvalue_close(uv, value)
+    }
+  }
+
+  // Remove closed upvalues from the map
+  for idx in to_close {
+    self.open_upvalues.remove(idx)
   }
 }

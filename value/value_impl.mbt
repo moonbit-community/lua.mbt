@@ -2,13 +2,49 @@
 // Implementation of the tagged value system for Lua
 
 ///|
+/// Upvalue - represents a captured variable in a closure
+/// Uses a mutable cell so it can be converted from Open to Closed
+pub struct UpvalueCell {
+  mut kind : UpvalueKind
+} derive(Show)
+
+///|
+/// The actual upvalue storage - either open (stack reference) or closed (heap copy)
+pub enum UpvalueKind {
+  Open(Int)  // Stack index
+  Closed(Ref[TValue])  // Captured value
+} derive(Show)
+
+///|
+/// Upvalue is a reference to a mutable cell
+pub type Upvalue = Ref[UpvalueCell]
+
+///|
+/// Create an open upvalue referencing a stack position
+pub fn upvalue_open(stack_index : Int) -> Upvalue {
+  { val: UpvalueCell::{ kind: UpvalueKind::Open(stack_index) } }
+}
+
+///|
+/// Create a closed upvalue with a captured value
+pub fn upvalue_closed(value : TValue) -> Upvalue {
+  { val: UpvalueCell::{ kind: UpvalueKind::Closed({ val: value }) } }
+}
+
+///|
+/// Close an upvalue (convert from Open to Closed)
+pub fn upvalue_close(upvalue : Upvalue, value : TValue) -> Unit {
+  upvalue.val.kind = UpvalueKind::Closed({ val: value })
+}
+
+///|
 /// Function reference - holds bytecode and constants
 /// To avoid circular dependency, we duplicate Proto structure here
 pub struct FunctionValue {
   code : Array[@opcodes.Instruction]
   constants : Array[TValue]
   protos : Array[@proto.Proto[TValue]]  // Nested function prototypes
-  upvalues : Array[TValue]
+  upvalues : Array[Upvalue]  // Changed from Array[TValue] to Array[Upvalue]
   param_count : Int  // Number of parameters this function expects
   is_vararg : Bool   // Whether this function accepts varargs
 } derive(Show)
@@ -49,7 +85,7 @@ pub fn FunctionValue::new_with_protos(
   code : Array[@opcodes.Instruction],
   constants : Array[TValue],
   protos : Array[@proto.Proto[TValue]],
-  upvalues : Array[TValue],
+  upvalues : Array[Upvalue],
   param_count : Int,
   is_vararg : Bool,
 ) -> FunctionValue {

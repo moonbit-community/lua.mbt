@@ -170,16 +170,15 @@ pub fn execute_instruction(
       let proto = frame.func.protos[bx]
 
       // Capture upvalues based on descriptors
-      let captured_upvalues : Array[@value.TValue] = []
+      let captured_upvalues : Array[@value.Upvalue] = []
       for desc in proto.upvalue_descs {
         let upvalue = if desc.in_stack {
-          // Capture from current frame's stack
+          // Capture from current frame's stack - get or create Open upvalue
           // desc.index is the local variable's register index (0-based)
-          state.get(base + desc.index + 1) catch {
-            _ => @value.TValue::nil()
-          }
+          // Stack index = base + desc.index + 1 (Lua 1-based indexing)
+          state.find_or_create_upvalue(base + desc.index + 1)
         } else {
-          // Capture from current function's upvalues
+          // Capture from current function's upvalues - reuse the parent's upvalue
           if desc.index < 0 || desc.index >= frame.func.upvalues.length() {
             raise VMError::RuntimeError(message="Invalid upvalue index in CLOSURE: index=\{desc.index}, upvalues.length=\{frame.func.upvalues.length()}")
           }
@@ -227,12 +226,26 @@ pub fn execute_instruction(
       // Get the upvalue
       let upvalue = frame.func.upvalues[b]
 
+      // Read value from upvalue (check if Open or Closed)
+      let value = match upvalue.val.kind {
+        @value.UpvalueKind::Open(stack_index) => {
+          // Open upvalue - read from stack
+          state.get(stack_index) catch {
+            _ => @value.TValue::nil()
+          }
+        }
+        @value.UpvalueKind::Closed(ref) => {
+          // Closed upvalue - read from captured value
+          ref.val
+        }
+      }
+
       // Store in destination register
       let target_index = base + a + 1
       while state.stack_size() < target_index {
         state.push(@value.TValue::nil())
       }
-      state.set(target_index, upvalue) catch {
+      state.set(target_index, value) catch {
         _ => raise VMError::RuntimeError(message="Invalid register write in GETUPVAL")
       }
       ExecutionResult::Continue
@@ -254,23 +267,27 @@ pub fn execute_instruction(
       }
 
       // Get value from register
-      let _value = state.get(base + a + 1) catch {
+      let value = state.get(base + a + 1) catch {
         _ => raise VMError::RuntimeError(message="Invalid register access in SETUPVAL")
       }
 
-      // CRITICAL LIMITATION: Proper upvalue modification requires mutable shared references
-      // Current implementation stores upvalues as immutable value copies in FunctionValue
-      // This means:
-      // 1. GetUpval works (can read captured values)
-      // 2. SetUpval cannot work properly (would need to modify shared mutable references)
-      //
-      // To fully support SetUpval, we would need to:
-      // - Change upvalues from Array[TValue] to Array[Ref[TValue]] (mutable references)
-      // - Update Closure opcode to create shared mutable references
-      // - Ensure all closures capturing the same variable share the same reference
-      //
-      // For now, raise an error to clearly indicate this is not yet supported
-      raise VMError::RuntimeError(message="SetUpval not implemented: upvalue modification requires mutable shared references (see vm_impl.mbt line 240)")
+      // Get the upvalue
+      let upvalue = frame.func.upvalues[b]
+
+      // Write value to upvalue (check if Open or Closed)
+      match upvalue.val.kind {
+        @value.UpvalueKind::Open(stack_index) => {
+          // Open upvalue - write to stack
+          state.set(stack_index, value) catch {
+            _ => raise VMError::RuntimeError(message="Failed to write to open upvalue")
+          }
+        }
+        @value.UpvalueKind::Closed(ref) => {
+          // Closed upvalue - write to captured value
+          ref.val = value
+        }
+      }
+      ExecutionResult::Continue
     }
     @opcodes.OpCode::LoadFalse => {
       // LoadFalse: R[A] := false
@@ -2664,6 +2681,12 @@ fn execute_return(
   // Pop current frame
   let frame = state.pop_frame() catch {
     _ => raise VMError::RuntimeError(message="Cannot return from main")
+  }
+
+  // Close any open upvalues for this frame's stack
+  // This captures local variables that are being closed over
+  state.close_upvalues(frame.base) catch {
+    _ => ()  // Ignore errors during upvalue closing
   }
 
   // If this is the last frame, we're returning from main - just return

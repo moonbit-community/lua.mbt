@@ -649,7 +649,8 @@ pub fn Compiler::compile_stmt(
                     match resolve_upvalue(self, parent_compiler, name) {
                       Some(upvalue_idx) => {
                         // Found as upvalue - emit SetUpval instruction
-                        self.emit(@opcodes.Instruction::abc(@opcodes.OpCode::SetUpval, upvalue_idx, value_reg, 0, false))
+                        // SetUpval: UpValue[B] := R[A], so A=value_reg, B=upvalue_idx
+                        self.emit(@opcodes.Instruction::abc(@opcodes.OpCode::SetUpval, value_reg, upvalue_idx, 0, false))
                       }
                       None => {
                         // Not found in upvalues either, treat as global assignment
