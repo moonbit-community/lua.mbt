@@ -8,6 +8,7 @@ pub struct Proto {
   code : Array[@opcodes.Instruction]
   constants : Array[@value.TValue]
   protos : Array[Proto] // Nested function prototypes
+  upvalue_count : Int   // Number of upvalues this function captures
 } derive(Show)
 
 ///|
@@ -17,7 +18,18 @@ pub fn Proto::new(
   constants : Array[@value.TValue],
   protos : Array[Proto],
 ) -> Proto {
-  Proto::{ code, constants, protos }
+  Proto::{ code, constants, protos, upvalue_count: 0 }
+}
+
+///|
+/// Create a new function prototype with upvalue count
+pub fn Proto::new_with_upvalues(
+  code : Array[@opcodes.Instruction],
+  constants : Array[@value.TValue],
+  protos : Array[Proto],
+  upvalue_count : Int,
+) -> Proto {
+  Proto::{ code, constants, protos, upvalue_count }
 }
 
 ///|

@@ -3,6 +3,14 @@
 // Compiles AST to bytecode
 
 ///|
+/// Upvalue descriptor (compile-time information about captured variables)
+struct UpvalueDesc {
+  in_stack : Bool  // true = capture from parent's local, false = from parent's upvalue
+  index : Int      // index in parent's locals or upvalues array
+  name : String    // variable name (for debugging)
+} derive(Show)
+
+///|
 /// Local variable information
 struct LocalVar {
   name : String
@@ -90,6 +98,9 @@ pub struct Compiler {
   // Local variables (name -> register)
   locals : Array[LocalVar]
 
+  // Upvalues (captured variables from parent scopes)
+  upvalues : Array[UpvalueDesc]
+
   // Current scope depth (0 = global)
   mut scope_depth : Int
 
@@ -117,6 +128,7 @@ pub fn Compiler::new() -> Compiler {
     constants: [],
     protos: [],
     locals: [],
+    upvalues: [],
     scope_depth: 0,
     next_register: 0,
     scope_register_base: [],
@@ -197,6 +209,58 @@ fn Compiler::add_local(
   }
   self.locals.push(LocalVar::{ name, register: reg, scope_depth: self.scope_depth })
   reg
+}
+
+///|
+/// Add an upvalue to this compiler's upvalue list
+/// Returns the index in the upvalue array
+fn Compiler::add_upvalue(
+  self : Compiler,
+  in_stack : Bool,
+  index : Int,
+  name : String,
+) -> Int {
+  // Check if this upvalue already exists
+  for i = 0; i < self.upvalues.length(); i = i + 1 {
+    let uv = self.upvalues[i]
+    if uv.in_stack == in_stack && uv.index == index {
+      return i  // Reuse existing upvalue
+    }
+  }
+
+  // Add new upvalue
+  let upvalue_index = self.upvalues.length()
+  self.upvalues.push(UpvalueDesc::{ in_stack, index, name })
+  upvalue_index
+}
+
+///|
+/// Try to resolve a variable as an upvalue by searching parent compiler
+/// Returns Some(upvalue_index) if found, None if not found
+fn resolve_upvalue(
+  compiler : Compiler,
+  parent : Compiler,
+  name : String,
+) -> Int? {
+  // First, try to find as a local in the parent
+  match parent.find_local(name) {
+    Some(local_reg) => {
+      // Found in parent's locals - add as upvalue pointing to stack
+      return Some(compiler.add_upvalue(true, local_reg, name))
+    }
+    None => ()
+  }
+
+  // Not found in parent's locals, try parent's upvalues
+  for i = 0; i < parent.upvalues.length(); i = i + 1 {
+    if parent.upvalues[i].name == name {
+      // Found in parent's upvalues - add as upvalue pointing to parent's upvalue
+      return Some(compiler.add_upvalue(false, i, name))
+    }
+  }
+
+  // Not found
+  None
 }
 
 ///|
@@ -2493,7 +2557,16 @@ pub fn Compiler::compile_expr(
 ///|
 /// Finalize and get the compiled prototype
 pub fn Compiler::finish(self : Compiler) -> @vm.Proto {
-  @vm.Proto::new(self.code, self.constants, self.protos)
+  if self.upvalues.length() > 0 {
+    @vm.Proto::new_with_upvalues(
+      self.code,
+      self.constants,
+      self.protos,
+      self.upvalues.length(),
+    )
+  } else {
+    @vm.Proto::new(self.code, self.constants, self.protos)
+  }
 }
 
 ///|
