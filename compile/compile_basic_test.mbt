@@ -19,7 +19,7 @@ test "compile binary expression" {
   )
   let compiler = Compiler::new()
   ignore(try! compiler.compile_expr(expr))
-  let proto = compiler.finish()
+  let proto = compiler.finish(0, false)
   let code = proto.code()
 
   // Should have LOADK for both numbers and ADD instruction

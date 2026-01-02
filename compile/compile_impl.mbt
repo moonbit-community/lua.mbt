@@ -3,14 +3,6 @@
 // Compiles AST to bytecode
 
 ///|
-/// Upvalue descriptor (compile-time information about captured variables)
-struct UpvalueDesc {
-  in_stack : Bool  // true = capture from parent's local, false = from parent's upvalue
-  index : Int      // index in parent's locals or upvalues array
-  name : String    // variable name (for debugging)
-} derive(Show)
-
-///|
 /// Local variable information
 struct LocalVar {
   name : String
@@ -93,13 +85,13 @@ pub struct Compiler {
   constants : Array[@value.TValue]
 
   // Nested function prototypes
-  protos : Array[@vm.Proto]
+  protos : Array[@proto.Proto[@value.TValue]]
 
   // Local variables (name -> register)
   locals : Array[LocalVar]
 
   // Upvalues (captured variables from parent scopes)
-  upvalues : Array[UpvalueDesc]
+  upvalues : Array[@proto.UpvalueDesc]
 
   // Current scope depth (0 = global)
   mut scope_depth : Int
@@ -118,6 +110,9 @@ pub struct Compiler {
 
   // Is this function a vararg function?
   mut is_vararg : Bool
+
+  // Parent compiler for upvalue resolution (for closures)
+  mut parent : Compiler?
 } derive(Show)
 
 ///|
@@ -135,6 +130,7 @@ pub fn Compiler::new() -> Compiler {
     jump_labels: [],
     break_jumps: [],
     is_vararg: false,
+    parent: None,
   }
 }
 
@@ -178,7 +174,7 @@ fn Compiler::add_constant(
 
 ///|
 /// Add a nested proto to the proto pool
-fn Compiler::add_proto(self : Compiler, proto : @vm.Proto) -> Int {
+fn Compiler::add_proto(self : Compiler, proto : @proto.Proto[@value.TValue]) -> Int {
   let index = self.protos.length()
   self.protos.push(proto)
   index
@@ -230,7 +226,7 @@ fn Compiler::add_upvalue(
 
   // Add new upvalue
   let upvalue_index = self.upvalues.length()
-  self.upvalues.push(UpvalueDesc::{ in_stack, index, name })
+  self.upvalues.push(@proto.UpvalueDesc::new(in_stack, index, name))
   upvalue_index
 }
 
@@ -259,8 +255,62 @@ fn resolve_upvalue(
     }
   }
 
-  // Not found
+  // Not found in parent's upvalues either
+  // Try to recursively resolve in parent's parent
+  match parent.parent {
+    Some(grandparent) => {
+      // Recursively resolve in grandparent
+      match resolve_upvalue(parent, grandparent, name) {
+        Some(parent_upvalue_idx) => {
+          // Parent now has this as an upvalue, add it to current compiler
+          return Some(compiler.add_upvalue(false, parent_upvalue_idx, name))
+        }
+        None => ()
+      }
+    }
+    None => ()
+  }
+
+  // Not found anywhere
   None
+}
+
+///|
+/// Compile a function body with optional parent compiler for closures
+/// Returns the compiled Proto and upvalue count
+fn compile_function_body(
+  params : Array[String],
+  is_vararg : Bool,
+  body : @parse.Stmt,
+  parent : Compiler?,
+) -> (@proto.Proto[@value.TValue], Int) raise CompileError {
+  let func_compiler = Compiler::new()
+  func_compiler.is_vararg = is_vararg
+  func_compiler.parent = parent  // Set parent for upvalue resolution
+
+  // Register parameters as locals
+  for param in params {
+    func_compiler.add_local(param) |> ignore
+  }
+
+  // Compile the function body (upvalue resolution happens in compile_expr)
+  func_compiler.compile_stmt(body)
+
+  let upvalue_count = func_compiler.upvalues.length()
+  let proto = func_compiler.finish(params.length(), is_vararg)
+  (proto, upvalue_count)
+}
+
+///|
+/// Compile a statement with parent compiler context for upvalue resolution
+fn compile_stmt_with_parent(
+  compiler : Compiler,
+  stmt : @parse.Stmt,
+  parent : Compiler,
+) -> Unit raise CompileError {
+  // For now, just compile normally - we'll add upvalue resolution in expressions
+  // This is a placeholder for the full implementation
+  compiler.compile_stmt(stmt)
 }
 
 ///|
@@ -593,15 +643,39 @@ pub fn Compiler::compile_stmt(
                   )
                 }
               None => {
-                // Not a local variable, treat as global assignment
-                let name_const_idx = self.add_constant(@value.TValue::string(name))
-                self.emit(
-                  @opcodes.Instruction::abx(
-                    @opcodes.OpCode::SetGlobal,
-                    value_reg,
-                    name_const_idx,
-                  ),
-                )
+                // Not a local, try upvalue resolution
+                match self.parent {
+                  Some(parent_compiler) => {
+                    match resolve_upvalue(self, parent_compiler, name) {
+                      Some(upvalue_idx) => {
+                        // Found as upvalue - emit SetUpval instruction
+                        self.emit(@opcodes.Instruction::abc(@opcodes.OpCode::SetUpval, upvalue_idx, value_reg, 0, false))
+                      }
+                      None => {
+                        // Not found in upvalues either, treat as global assignment
+                        let name_const_idx = self.add_constant(@value.TValue::string(name))
+                        self.emit(
+                          @opcodes.Instruction::abx(
+                            @opcodes.OpCode::SetGlobal,
+                            value_reg,
+                            name_const_idx,
+                          ),
+                        )
+                      }
+                    }
+                  }
+                  None => {
+                    // No parent, must be global assignment
+                    let name_const_idx = self.add_constant(@value.TValue::string(name))
+                    self.emit(
+                      @opcodes.Instruction::abx(
+                        @opcodes.OpCode::SetGlobal,
+                        value_reg,
+                        name_const_idx,
+                      ),
+                    )
+                  }
+                }
               }
             }
           }
@@ -882,33 +956,29 @@ pub fn Compiler::compile_stmt(
       // TODO: Proper scope management
     }
     @parse.Stmt::FunctionDef(name, params, is_vararg, body) => {
-      // Compile function body in a new compiler
-      let func_compiler = Compiler::new()
-      func_compiler.is_vararg = is_vararg
-
-      // Register parameters as locals (starting at register 0)
-      for param in params {
-        func_compiler.add_local(param) |> ignore
-      }
-
-      // Compile function body
-      func_compiler.compile_stmt(body)
-
-      // Get the function code and constants
-      let proto = func_compiler.finish()
-      let func_value = @value.FunctionValue::new_full(
-        proto.code(),
-        proto.constants,
-        params.length(),
-        is_vararg,
-      )
-
-      // Add function to constants
-      let func_const_idx = self.add_constant(@value.TValue::function(func_value))
+      // Compile function body with parent context for closure support
+      let (proto, upvalue_count) = compile_function_body(params, is_vararg, body, Some(self))
 
       // Load function into a temporary register
       let temp_reg = self.alloc_register()
-      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, temp_reg, func_const_idx))
+
+      if upvalue_count > 0 {
+        // Function has upvalues - emit Closure opcode
+        let proto_idx = self.add_proto(proto)
+        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::Closure, temp_reg, proto_idx))
+      } else {
+        // No upvalues - use LoadK with function constant
+        let func_value = @value.FunctionValue::new_with_protos(
+          proto.code(),
+          proto.constants,
+          proto.protos,
+          [],  // No upvalues
+          params.length(),
+          is_vararg,
+        )
+        let func_const_idx = self.add_constant(@value.TValue::function(func_value))
+        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, temp_reg, func_const_idx))
+      }
 
       // Check if the name contains a dot (table field assignment)
       if name.contains(".") {
@@ -973,35 +1043,29 @@ pub fn Compiler::compile_stmt(
       }
     }
     @parse.Stmt::LocalFunctionDef(name, params, is_vararg, body) => {
-      // Similar to FunctionDef but creates a local immediately
-      // Register function name first (for outer scope)
+      // Register function name first (for recursion support via upvalues)
       let func_reg = self.add_local(name)
 
-      // Compile function body
-      let func_compiler = Compiler::new()
-      func_compiler.is_vararg = is_vararg
+      // Compile function body with parent context for closure support
+      let (proto, upvalue_count) = compile_function_body(params, is_vararg, body, Some(self))
 
-      // Register parameters as locals (starting at register 0)
-      // Note: Recursion won't work yet - needs upvalues/closures
-      for param in params {
-        func_compiler.add_local(param) |> ignore
+      if upvalue_count > 0 {
+        // Function has upvalues - emit Closure opcode
+        let proto_idx = self.add_proto(proto)
+        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::Closure, func_reg, proto_idx))
+      } else {
+        // No upvalues - use LoadK with function constant
+        let func_value = @value.FunctionValue::new_with_protos(
+          proto.code(),
+          proto.constants,
+          proto.protos,
+          [],  // No upvalues
+          params.length(),
+          is_vararg,
+        )
+        let const_idx = self.add_constant(@value.TValue::function(func_value))
+        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, const_idx))
       }
-
-      // Compile function body
-      func_compiler.compile_stmt(body)
-
-      // Get the function code and constants
-      let proto = func_compiler.finish()
-      let func_value = @value.FunctionValue::new_full(
-        proto.code(),
-        proto.constants,
-        params.length(),
-        is_vararg,
-      )
-
-      // Add function to constants and load it
-      let const_idx = self.add_constant(@value.TValue::function(func_value))
-      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, const_idx))
     }
     @parse.Stmt::FunctionCall(func_expr, args) => {
       // Compile function call as a statement (ignore return values)
@@ -1500,11 +1564,33 @@ pub fn Compiler::compile_expr(
       match self.find_local(name) {
         Some(local_reg) => local_reg
         None => {
-          // Not a local, try to load as global
-          let reg = self.alloc_register()
-          let name_const_idx = self.add_constant(@value.TValue::string(name))
-          self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::GetGlobal, reg, name_const_idx))
-          reg
+          // Not a local, try upvalue resolution
+          match self.parent {
+            Some(parent_compiler) => {
+              match resolve_upvalue(self, parent_compiler, name) {
+                Some(upvalue_idx) => {
+                  // Found as upvalue - emit GetUpval instruction
+                  let reg = self.alloc_register()
+                  self.emit(@opcodes.Instruction::abc(@opcodes.OpCode::GetUpval, reg, upvalue_idx, 0, false))
+                  reg
+                }
+                None => {
+                  // Not found in upvalues either, treat as global
+                  let reg = self.alloc_register()
+                  let name_const_idx = self.add_constant(@value.TValue::string(name))
+                  self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::GetGlobal, reg, name_const_idx))
+                  reg
+                }
+              }
+            }
+            None => {
+              // No parent, must be global
+              let reg = self.alloc_register()
+              let name_const_idx = self.add_constant(@value.TValue::string(name))
+              self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::GetGlobal, reg, name_const_idx))
+              reg
+            }
+          }
         }
       }
     @parse.Expr::Add(left, right) => {
@@ -2484,34 +2570,29 @@ pub fn Compiler::compile_expr(
       result_reg
     }
     @parse.Expr::Function(params, is_vararg, body) => {
-      // Compile anonymous function expression
-      // Create a new compiler for the function body
-      let func_compiler = Compiler::new()
-      func_compiler.is_vararg = is_vararg
-
-      // Register parameters as locals (starting at register 0)
-      for param in params {
-        func_compiler.add_local(param) |> ignore
-      }
-
-      // Compile function body
-      func_compiler.compile_stmt(body)
-
-      // Get the function code and constants
-      let proto = func_compiler.finish()
-      let func_value = @value.FunctionValue::new_full(
-        proto.code(),
-        proto.constants,
-        params.length(),
-        is_vararg,
-      )
-
-      // Add function to constants
-      let func_const_idx = self.add_constant(@value.TValue::function(func_value))
+      // Compile anonymous function expression with parent context for closure support
+      let (proto, upvalue_count) = compile_function_body(params, is_vararg, body, Some(self))
 
       // Load function into a register
       let func_reg = self.alloc_register()
-      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, func_const_idx))
+
+      if upvalue_count > 0 {
+        // Function has upvalues - emit Closure opcode
+        let proto_idx = self.add_proto(proto)
+        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::Closure, func_reg, proto_idx))
+      } else {
+        // No upvalues - use LoadK with function constant
+        let func_value = @value.FunctionValue::new_with_protos(
+          proto.code(),
+          proto.constants,
+          proto.protos,
+          [],  // No upvalues
+          params.length(),
+          is_vararg,
+        )
+        let func_const_idx = self.add_constant(@value.TValue::function(func_value))
+        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, func_const_idx))
+      }
 
       func_reg
     }
@@ -2556,22 +2637,25 @@ pub fn Compiler::compile_expr(
 
 ///|
 /// Finalize and get the compiled prototype
-pub fn Compiler::finish(self : Compiler) -> @vm.Proto {
+pub fn Compiler::finish(self : Compiler, param_count : Int, is_vararg : Bool) -> @proto.Proto[@value.TValue] {
   if self.upvalues.length() > 0 {
-    @vm.Proto::new_with_upvalues(
+    @proto.Proto::new_with_upvalues(
       self.code,
       self.constants,
       self.protos,
       self.upvalues.length(),
+      self.upvalues,
+      param_count,
+      is_vararg,
     )
   } else {
-    @vm.Proto::new(self.code, self.constants, self.protos)
+    @proto.Proto::new(self.code, self.constants, self.protos, param_count, is_vararg)
   }
 }
 
 ///|
 /// Compile a complete Lua chunk to bytecode
-pub fn compile(stmt : @parse.Stmt) -> @vm.Proto raise CompileError {
+pub fn compile(stmt : @parse.Stmt) -> @proto.Proto[@value.TValue] raise CompileError {
   let compiler = Compiler::new()
 
   // Handle top-level chunk specially: it's a Block but shouldn't create a scope
@@ -2604,5 +2688,5 @@ pub fn compile(stmt : @parse.Stmt) -> @vm.Proto raise CompileError {
     _ => compiler.compile_stmt(stmt)
   }
 
-  compiler.finish()
+  compiler.finish(0, false)  // Top-level chunk has no parameters
 }

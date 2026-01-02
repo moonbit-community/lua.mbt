@@ -1,5 +1,6 @@
 {
   "import": [
-    "lua/opcodes"
+    "lua/opcodes",
+    "lua/proto"
   ]
 }

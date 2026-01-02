@@ -1,3 +1,3 @@
 {
-  "import": ["lua/value", "lua/opcodes", "lua/state", "lua/stdlib"]
+  "import": ["lua/value", "lua/opcodes", "lua/state", "lua/stdlib", "lua/proto"]
 }

@@ -7,6 +7,7 @@
 pub struct FunctionValue {
   code : Array[@opcodes.Instruction]
   constants : Array[TValue]
+  protos : Array[@proto.Proto[TValue]]  // Nested function prototypes
   upvalues : Array[TValue]
   param_count : Int  // Number of parameters this function expects
   is_vararg : Bool   // Whether this function accepts varargs
@@ -18,7 +19,7 @@ pub fn FunctionValue::new(
   code : Array[@opcodes.Instruction],
   constants : Array[TValue],
 ) -> FunctionValue {
-  FunctionValue::{ code, constants, upvalues: [], param_count: 0, is_vararg: false }
+  FunctionValue::{ code, constants, protos: [], upvalues: [], param_count: 0, is_vararg: false }
 }
 
 ///|
@@ -28,7 +29,7 @@ pub fn FunctionValue::new_with_params(
   constants : Array[TValue],
   param_count : Int,
 ) -> FunctionValue {
-  FunctionValue::{ code, constants, upvalues: [], param_count, is_vararg: false }
+  FunctionValue::{ code, constants, protos: [], upvalues: [], param_count, is_vararg: false }
 }
 
 ///|
@@ -39,7 +40,20 @@ pub fn FunctionValue::new_full(
   param_count : Int,
   is_vararg : Bool,
 ) -> FunctionValue {
-  FunctionValue::{ code, constants, upvalues: [], param_count, is_vararg }
+  FunctionValue::{ code, constants, protos: [], upvalues: [], param_count, is_vararg }
+}
+
+///|
+/// Create a new function value with protos (for closures)
+pub fn FunctionValue::new_with_protos(
+  code : Array[@opcodes.Instruction],
+  constants : Array[TValue],
+  protos : Array[@proto.Proto[TValue]],
+  upvalues : Array[TValue],
+  param_count : Int,
+  is_vararg : Bool,
+) -> FunctionValue {
+  FunctionValue::{ code, constants, protos, upvalues, param_count, is_vararg }
 }
 
 ///|

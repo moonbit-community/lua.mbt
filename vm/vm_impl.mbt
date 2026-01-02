@@ -2,66 +2,18 @@
 // Based on Lua 5.4's lvm.c
 // Register-based virtual machine
 
-///|
-/// Function prototype containing bytecode and constants
-pub struct Proto {
-  code : Array[@opcodes.Instruction]
-  constants : Array[@value.TValue]
-  protos : Array[Proto] // Nested function prototypes
-  upvalue_count : Int   // Number of upvalues this function captures
-} derive(Show)
-
-///|
-/// Create a new function prototype
-pub fn Proto::new(
-  code : Array[@opcodes.Instruction],
-  constants : Array[@value.TValue],
-  protos : Array[Proto],
-) -> Proto {
-  Proto::{ code, constants, protos, upvalue_count: 0 }
-}
-
-///|
-/// Create a new function prototype with upvalue count
-pub fn Proto::new_with_upvalues(
-  code : Array[@opcodes.Instruction],
-  constants : Array[@value.TValue],
-  protos : Array[Proto],
-  upvalue_count : Int,
-) -> Proto {
-  Proto::{ code, constants, protos, upvalue_count }
-}
-
-///|
-/// Get code array
-pub fn Proto::code(self : Proto) -> Array[@opcodes.Instruction] {
-  self.code
-}
-
-///|
-/// Get constant at index
-pub fn Proto::constant(self : Proto, index : Int) -> @value.TValue {
-  self.constants[index]
-}
-
-///|
-/// Get all constants
-pub fn Proto::constants(self : Proto) -> Array[@value.TValue] {
-  self.constants
-}
-
-///|
-/// Get nested proto at index
-pub fn Proto::proto(self : Proto, index : Int) -> Proto {
-  self.protos[index]
-}
-
-///|
-/// Execute bytecode on a Lua state
+///| /// Execute bytecode on a Lua state
 /// Now supports function calls via call stack
-pub fn execute(state : @state.LuaState, proto : Proto) -> Unit raise VMError {
+pub fn execute(state : @state.LuaState, proto : @proto.Proto[@value.TValue]) -> Unit raise VMError {
   // Convert proto to FunctionValue and push initial frame
-  let func = @value.FunctionValue::new(proto.code, proto.constants)
+  let func = @value.FunctionValue::new_with_protos(
+    proto.code,
+    proto.constants,
+    proto.protos,
+    [],  // No upvalues for top-level chunk
+    0,   // No parameters for top-level chunk
+    false,  // Top-level chunk is not vararg
+  )
   let base = state.stack_size()
 
   // Ensure we have enough stack space for registers
@@ -199,6 +151,126 @@ pub fn execute_instruction(
           raise VMError::RuntimeError(message="Invalid register write in LOADK: base=\{base}, a=\{a}, target_index=\{target_index}, stack_size=\{state.stack_size()}")
       }
       ExecutionResult::Continue
+    }
+    @opcodes.OpCode::Closure => {
+      // Closure: R[A] := closure(KPROTO[Bx])
+      // Create a closure from a proto, capturing upvalues
+      let a = instr.get_a()
+      let bx = instr.get_bx()
+
+      // Get current frame to access function's protos
+      let frame = state.current_frame() catch {
+        _ => raise VMError::RuntimeError(message="No active frame for Closure")
+      }
+
+      // Get the proto from the current function's proto pool
+      if bx < 0 || bx >= frame.func.protos.length() {
+        raise VMError::RuntimeError(message="Invalid proto index in CLOSURE: bx=\{bx}, protos.length=\{frame.func.protos.length()}")
+      }
+      let proto = frame.func.protos[bx]
+
+      // Capture upvalues based on descriptors
+      let captured_upvalues : Array[@value.TValue] = []
+      for desc in proto.upvalue_descs {
+        let upvalue = if desc.in_stack {
+          // Capture from current frame's stack
+          // desc.index is the local variable's register index (0-based)
+          state.get(base + desc.index + 1) catch {
+            _ => @value.TValue::nil()
+          }
+        } else {
+          // Capture from current function's upvalues
+          if desc.index < 0 || desc.index >= frame.func.upvalues.length() {
+            raise VMError::RuntimeError(message="Invalid upvalue index in CLOSURE: index=\{desc.index}, upvalues.length=\{frame.func.upvalues.length()}")
+          }
+          frame.func.upvalues[desc.index]
+        }
+        captured_upvalues.push(upvalue)
+      }
+
+      // Create the closure with captured upvalues
+      let closure = @value.FunctionValue::new_with_protos(
+        proto.code,
+        proto.constants,
+        proto.protos,
+        captured_upvalues,
+        proto.param_count,
+        proto.is_vararg,
+      )
+
+      // Store closure in destination register
+      let target_index = base + a + 1
+      while state.stack_size() < target_index {
+        state.push(@value.TValue::nil())
+      }
+      state.set(target_index, @value.TValue::function(closure)) catch {
+        _ => raise VMError::RuntimeError(message="Invalid register write in CLOSURE")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::GetUpval => {
+      // GetUpval: R[A] := UpValue[B]
+      // Read upvalue B from current function and store in register A
+      let a = instr.get_a()
+      let b = instr.get_b()
+
+      // Get current frame to access function's upvalues
+      let frame = state.current_frame() catch {
+        _ => raise VMError::RuntimeError(message="No active frame for GetUpval")
+      }
+
+      // Check upvalue index bounds
+      if b < 0 || b >= frame.func.upvalues.length() {
+        raise VMError::RuntimeError(message="Invalid upvalue index in GETUPVAL: b=\{b}, upvalues.length=\{frame.func.upvalues.length()}")
+      }
+
+      // Get the upvalue
+      let upvalue = frame.func.upvalues[b]
+
+      // Store in destination register
+      let target_index = base + a + 1
+      while state.stack_size() < target_index {
+        state.push(@value.TValue::nil())
+      }
+      state.set(target_index, upvalue) catch {
+        _ => raise VMError::RuntimeError(message="Invalid register write in GETUPVAL")
+      }
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::SetUpval => {
+      // SetUpval: UpValue[B] := R[A]
+      // Write value from register A to upvalue B of current function
+      let a = instr.get_a()
+      let b = instr.get_b()
+
+      // Get current frame to access function's upvalues
+      let frame = state.current_frame() catch {
+        _ => raise VMError::RuntimeError(message="No active frame for SetUpval")
+      }
+
+      // Check upvalue index bounds
+      if b < 0 || b >= frame.func.upvalues.length() {
+        raise VMError::RuntimeError(message="Invalid upvalue index in SETUPVAL: b=\{b}, upvalues.length=\{frame.func.upvalues.length()}")
+      }
+
+      // Get value from register
+      let _value = state.get(base + a + 1) catch {
+        _ => raise VMError::RuntimeError(message="Invalid register access in SETUPVAL")
+      }
+
+      // CRITICAL LIMITATION: Proper upvalue modification requires mutable shared references
+      // Current implementation stores upvalues as immutable value copies in FunctionValue
+      // This means:
+      // 1. GetUpval works (can read captured values)
+      // 2. SetUpval cannot work properly (would need to modify shared mutable references)
+      //
+      // To fully support SetUpval, we would need to:
+      // - Change upvalues from Array[TValue] to Array[Ref[TValue]] (mutable references)
+      // - Update Closure opcode to create shared mutable references
+      // - Ensure all closures capturing the same variable share the same reference
+      //
+      // For now, raise an error to clearly indicate this is not yet supported
+      raise VMError::RuntimeError(message="SetUpval not implemented: upvalue modification requires mutable shared references (see vm_impl.mbt line 240)")
     }
     @opcodes.OpCode::LoadFalse => {
       // LoadFalse: R[A] := false
