@@ -757,6 +757,8 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   state.set_global("tostring", @value.TValue::native_function("tostring"))
   state.set_global("assert", @value.TValue::native_function("assert"))
   state.set_global("error", @value.TValue::native_function("error"))
+  state.set_global("pcall", @value.TValue::native_function("pcall"))
+  state.set_global("xpcall", @value.TValue::native_function("xpcall"))
   state.set_global("select", @value.TValue::native_function("select"))
 
   // Raw table access functions (bypass metatables)

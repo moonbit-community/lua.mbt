@@ -2065,6 +2065,135 @@ fn call_native_function(
       }
       [@value.TValue::string(result)]
     }
+    "pcall" => {
+      // pcall(f, ...) - Protected call
+      // Returns (true, results...) on success or (false, error_message) on error
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="pcall requires at least one argument")
+      }
+
+      let func_val = args[0]
+      let call_args : Array[@value.TValue] = []
+      for i = 1; i < args.length(); i = i + 1 {
+        call_args.push(args[i])
+      }
+
+      // Save initial call depth for cleanup on error
+      let initial_depth = state.call_depth()
+
+      // Try to call the function
+      try {
+        let results = match func_val {
+          @value.TValue::NativeFunction(nfunc) => {
+            call_native_function(state, nfunc.name, call_args)
+          }
+          @value.TValue::Function(func) => {
+            call_bytecode_function(state, func, call_args)
+          }
+          _ => raise VMError::InvalidOperation(message="pcall: first argument must be a function")
+        }
+
+        // Success: return (true, results...)
+        let result_array : Array[@value.TValue] = [@value.TValue::boolean(true)]
+        for r in results {
+          result_array.push(r)
+        }
+        result_array
+      } catch {
+        err => {
+          // Clean up any call frames that were pushed
+          while state.call_depth() > initial_depth {
+            ignore(state.pop_frame() catch { _ => raise VMError::RuntimeError(message="cleanup failed") })
+          }
+
+          // Error: return (false, error_message)
+          let error_msg = match err {
+            VMError::InvalidOpcode(op=op) => "Invalid opcode: \{op}"
+            VMError::DivisionByZero => "Division by zero"
+            VMError::InvalidOperation(message=msg) => msg
+            VMError::RuntimeError(message=msg) => msg
+          }
+          [@value.TValue::boolean(false), @value.TValue::string(error_msg)]
+        }
+      }
+    }
+    "xpcall" => {
+      // xpcall(f, err_handler, ...) - Extended protected call
+      // Returns (true, results...) on success or (false, handler_result) on error
+      if args.length() < 2 {
+        raise VMError::InvalidOperation(message="xpcall requires at least two arguments")
+      }
+
+      let func_val = args[0]
+      let err_handler = args[1]
+      let call_args : Array[@value.TValue] = []
+      for i = 2; i < args.length(); i = i + 1 {
+        call_args.push(args[i])
+      }
+
+      // Save initial call depth for cleanup on error
+      let initial_depth = state.call_depth()
+
+      // Try to call the function
+      try {
+        let results = match func_val {
+          @value.TValue::NativeFunction(nfunc) => {
+            call_native_function(state, nfunc.name, call_args)
+          }
+          @value.TValue::Function(func) => {
+            call_bytecode_function(state, func, call_args)
+          }
+          _ => raise VMError::InvalidOperation(message="xpcall: first argument must be a function")
+        }
+
+        // Success: return (true, results...)
+        let result_array : Array[@value.TValue] = [@value.TValue::boolean(true)]
+        for r in results {
+          result_array.push(r)
+        }
+        result_array
+      } catch {
+        err => {
+          // Clean up any call frames that were pushed
+          while state.call_depth() > initial_depth {
+            ignore(state.pop_frame() catch { _ => raise VMError::RuntimeError(message="cleanup failed") })
+          }
+
+          // Error: call error handler with error message
+          let error_msg_str = match err {
+            VMError::InvalidOpcode(op=op) => "Invalid opcode: \{op}"
+            VMError::DivisionByZero => "Division by zero"
+            VMError::InvalidOperation(message=msg) => msg
+            VMError::RuntimeError(message=msg) => msg
+          }
+          let error_msg = @value.TValue::string(error_msg_str)
+
+          // Call error handler
+          let handler_results = try {
+            match err_handler {
+              @value.TValue::NativeFunction(nfunc) => {
+                call_native_function(state, nfunc.name, [error_msg])
+              }
+              @value.TValue::Function(func) => {
+                call_bytecode_function(state, func, [error_msg])
+              }
+              _ => [error_msg]  // If handler is not a function, just use the error message
+            }
+          } catch {
+            _ => [error_msg]  // If handler fails, use original error message
+          }
+
+          // Return (false, handler_result)
+          let result_array : Array[@value.TValue] = [@value.TValue::boolean(false)]
+          if handler_results.length() > 0 {
+            result_array.push(handler_results[0])
+          } else {
+            result_array.push(error_msg)
+          }
+          result_array
+        }
+      }
+    }
     _ => {
       // Ignore set_global for now - it's used during initialization
       ignore(state)
