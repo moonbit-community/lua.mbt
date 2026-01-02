@@ -13,12 +13,13 @@
 - **Closures**: Read-only upvalues, multi-level nesting, upvalue chaining
 
 ### Standard Library
-- **Basic Functions**: print, type, tonumber, tostring, select, error, assert, pcall, xpcall
+- **Basic Functions**: print, type, tonumber, tostring, select, error, assert, pcall, xpcall, load
 - **String Library**: string.len, string.sub, string.upper, string.lower, string.rep, string.reverse, string.byte, string.char
 - **Table Library**: table.insert, table.remove, table.concat, table.unpack
 - **Math Library**: All standard math functions (sin, cos, sqrt, abs, floor, ceil, min, max, etc.)
 - **Metatables**: setmetatable, getmetatable, rawset, rawget, rawequal
 - **All Metamethods**: __index, __newindex, __add, __sub, __mul, __div, __mod, __pow, __unm, __concat, __eq, __lt, __le, __len, __call, __tostring
+- **Dynamic Compilation**: load() - compile Lua strings into callable functions at runtime
 
 ### Advanced Features
 - **Tail Calls**: Proper tail call optimization
@@ -52,7 +53,7 @@
 - **Bitwise Operators**: ~, &, |, <<, >> (actually these ARE implemented!)
 
 ### Standard Library (Not Implemented)
-- **load/loadfile/loadstring**: Dynamic code compilation
+- **loadfile/loadstring**: Alternative dynamic compilation functions (use load() instead)
 - **dofile**: Execute file (but we have command-line file execution)
 - **require/package system**: Module loading system
 - **io library**: File I/O operations
@@ -73,8 +74,8 @@
 
 ### Test Results
 - **Unit Tests**: 55/55 passing (100%)
-- **Integration Tests**: 101/101 passing (100%)
-- **Total**: 156 tests passing
+- **Integration Tests**: 102/102 passing (100%)
+- **Total**: 157 tests passing
 
 ### Coverage
 - Arithmetic operations ✓

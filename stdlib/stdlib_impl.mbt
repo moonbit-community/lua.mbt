@@ -761,6 +761,9 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   state.set_global("xpcall", @value.TValue::native_function("xpcall"))
   state.set_global("select", @value.TValue::native_function("select"))
 
+  // Dynamic code compilation
+  state.set_global("load", @value.TValue::native_function("load"))
+
   // Raw table access functions (bypass metatables)
   state.set_global("rawget", @value.TValue::native_function("rawget"))
   state.set_global("rawset", @value.TValue::native_function("rawset"))

@@ -6,14 +6,80 @@
 /// Lua API context (wraps LuaState with C-compatible interface)
 pub struct LuaAPI {
   state : @state.LuaState
-} derive(Show)
+}
 
 ///|
 /// Create a new Lua API context
 pub fn LuaAPI::new() -> LuaAPI {
   let state = @state.LuaState::new()
+
   // Register standard library
   @stdlib.register_stdlib(state)
+
+  // Register compiler callback for load() function
+  // This avoids circular dependencies by injecting compilation at API level
+  state.set_compiler(fn(source : String) -> @value.TValue raise @state.StateError {
+    // Lex the source
+    let lexer = @lex.Lexer::new(source)
+
+    // Parse into AST
+    let parser = @parse.Parser::new(lexer)
+    let stmt = parser.parse_chunk() catch {
+      @parse.ParseError::UnexpectedToken(expected~, actual~, line~, ..) =>
+        raise @state.StateError::RuntimeError(
+          message="Unexpected token '\{actual}', expected '\{expected}' at line \{line}",
+        )
+      @parse.ParseError::InvalidSyntax(message~, line~) =>
+        raise @state.StateError::RuntimeError(
+          message="Syntax error at line \{line}: \{message}",
+        )
+      @parse.ParseError::UnexpectedEof(line~) =>
+        raise @state.StateError::RuntimeError(
+          message="Unexpected end of file at line \{line}",
+        )
+    }
+
+    // Compile to bytecode
+    let proto = @compile.compile(stmt) catch {
+      @compile.CompileError::TooManyLocals(line~) =>
+        raise @state.StateError::RuntimeError(
+          message="Too many local variables at line \{line}",
+        )
+      @compile.CompileError::TooManyConstants(line~) =>
+        raise @state.StateError::RuntimeError(
+          message="Too many constants at line \{line}",
+        )
+      @compile.CompileError::InvalidJumpTarget(line~) =>
+        raise @state.StateError::RuntimeError(
+          message="Invalid jump target at line \{line}",
+        )
+      @compile.CompileError::UndefinedVariable(name~, line~) =>
+        raise @state.StateError::RuntimeError(
+          message="Undefined variable '\{name}' at line \{line}",
+        )
+      @compile.CompileError::BreakOutsideLoop(line~) =>
+        raise @state.StateError::RuntimeError(
+          message="Break statement outside loop at line \{line}",
+        )
+      @compile.CompileError::InvalidSyntax(message~, line~) =>
+        raise @state.StateError::RuntimeError(
+          message="\{message} at line \{line}",
+        )
+    }
+
+    // Create function value from proto without executing
+    let func = @value.FunctionValue::new_with_protos(
+      proto.code,
+      proto.constants,
+      proto.protos,
+      [],  // No upvalues for dynamically loaded code
+      0,   // No parameters (chunk functions take no params)
+      false,  // Not vararg
+    )
+
+    @value.TValue::function(func)
+  })
+
   LuaAPI::{ state, }
 }
 
@@ -81,6 +147,72 @@ pub fn LuaAPI::load_string(
       raise APIError::RuntimeError(message="Runtime error: \{message}")
   }
   Status::OK
+}
+
+///|
+/// Compile a string into a function value (for load())
+/// Returns the compiled function or raises an error
+pub fn LuaAPI::compile_string(
+  self : LuaAPI,
+  source : String,
+) -> @value.TValue raise APIError {
+  // Lex the source
+  let lexer = @lex.Lexer::new(source)
+
+  // Parse into AST
+  let parser = @parse.Parser::new(lexer)
+  let stmt = parser.parse_chunk() catch {
+    @parse.ParseError::UnexpectedToken(expected~, actual~, line~, ..) =>
+      raise APIError::SyntaxError(
+        message="Unexpected token '\{actual}', expected '\{expected}' at line \{line}",
+      )
+    @parse.ParseError::InvalidSyntax(message~, line~) =>
+      raise APIError::SyntaxError(
+        message="Syntax error at line \{line}: \{message}",
+      )
+    @parse.ParseError::UnexpectedEof(line~) =>
+      raise APIError::SyntaxError(
+        message="Unexpected end of file at line \{line}",
+      )
+  }
+
+  // Compile to bytecode
+  let proto = @compile.compile(stmt) catch {
+    @compile.CompileError::TooManyLocals(line~) =>
+      raise APIError::RuntimeError(
+        message="Too many local variables at line \{line}",
+      )
+    @compile.CompileError::TooManyConstants(line~) =>
+      raise APIError::RuntimeError(message="Too many constants at line \{line}")
+    @compile.CompileError::InvalidJumpTarget(line~) =>
+      raise APIError::RuntimeError(
+        message="Invalid jump target at line \{line}",
+      )
+    @compile.CompileError::UndefinedVariable(name~, line~) =>
+      raise APIError::RuntimeError(
+        message="Undefined variable '\{name}' at line \{line}",
+      )
+    @compile.CompileError::BreakOutsideLoop(line~) =>
+      raise APIError::RuntimeError(
+        message="Break statement outside loop at line \{line}",
+      )
+    @compile.CompileError::InvalidSyntax(message~, line~) =>
+      raise APIError::SyntaxError(
+        message="\{message} at line \{line}",
+      )
+  }
+
+  // Create function value from proto without executing
+  let func = @value.FunctionValue::new_with_protos(
+    proto.code,
+    proto.constants,
+    proto.protos,
+    [],  // No upvalues for dynamically loaded code
+    0,   // No parameters (chunk functions take no params)
+    false,  // Not vararg
+  )
+
+  @value.TValue::function(func)
 }
 
 ///|

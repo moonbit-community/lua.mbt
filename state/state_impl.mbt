@@ -34,12 +34,52 @@ pub struct LuaState {
 
   // Call stack
   call_stack : Array[CallFrame]
-} derive(Show)
+
+  // Optional compiler callback for dynamic code compilation (load())
+  // Set by API layer during initialization to avoid circular dependencies
+  mut compiler : ((String) -> @value.TValue raise StateError)?
+}
+
+///|
+/// Custom Show implementation for LuaState (compiler field cannot be shown)
+pub impl Show for LuaState with output(self, logger) {
+  let compiler_str = match self.compiler {
+    Some(_) => "Some(<function>)"
+    None => "None"
+  }
+  logger.write_string(
+    "LuaState { stack: \{self.stack}, globals: \{self.globals}, call_stack: \{self.call_stack}, compiler: \{compiler_str} }",
+  )
+}
 
 ///|
 /// Create a new Lua state
 pub fn LuaState::new() -> LuaState {
-  LuaState::{ stack: [], globals: {}, call_stack: [] }
+  LuaState::{ stack: [], globals: {}, call_stack: [], compiler: None }
+}
+
+///|
+/// Set the compiler callback for dynamic code compilation
+pub fn LuaState::set_compiler(
+  self : LuaState,
+  compiler : (String) -> @value.TValue raise StateError,
+) -> Unit {
+  self.compiler = Some(compiler)
+}
+
+///|
+/// Compile a string using the registered compiler (for load())
+pub fn LuaState::compile_string(
+  self : LuaState,
+  source : String,
+) -> @value.TValue raise StateError {
+  match self.compiler {
+    Some(comp) => comp(source)
+    None =>
+      raise StateError::RuntimeError(
+        message="load() not available: no compiler registered",
+      )
+  }
 }
 
 ///|

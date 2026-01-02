@@ -11,6 +11,7 @@ pub(all) suberror StateError {
   GlobalNotFound(name~ : String)
   CallStackUnderflow
   NoActiveFrame
+  RuntimeError(message~ : String)  // For dynamic compilation errors
 } derive(Eq, Show, ToJson)
 
 ///|

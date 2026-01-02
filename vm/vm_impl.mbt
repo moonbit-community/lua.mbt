@@ -2278,6 +2278,38 @@ fn call_native_function(
         }
       }
     }
+    "load" => {
+      // load(chunk, [chunkname], [mode], [env])
+      // Loads a chunk as a function
+      // For simplicity, we only support string chunks (not reader functions)
+      // Returns either (function) on success or (nil, error_message) on error
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="load requires at least one argument")
+      }
+
+      let code_str = match args[0] {
+        @value.TValue::String(s) => s
+        @value.TValue::Nil =>
+          return [@value.TValue::nil(), @value.TValue::string("load: chunk must be a string")]
+        _ =>
+          return [@value.TValue::nil(), @value.TValue::string("load: chunk must be a string")]
+      }
+
+      // Try to compile the code using the registered compiler
+      let func = state.compile_string(code_str) catch {
+        @state.StateError::RuntimeError(message~) => {
+          // Return nil and error message
+          return [@value.TValue::nil(), @value.TValue::string(message)]
+        }
+        _ => {
+          // Other state errors
+          return [@value.TValue::nil(), @value.TValue::string("load: compilation failed")]
+        }
+      }
+
+      // Return the compiled function
+      [func]
+    }
     _ => {
       // Ignore set_global for now - it's used during initialization
       ignore(state)
