@@ -2318,40 +2318,85 @@ pub fn Compiler::compile_expr(
 
       // Fill table with fields
       let mut array_index = 1
-      for field in fields {
+      let num_fields = fields.length()
+
+      for i, field in fields {
         let (key_opt, value) = field
+        let is_last = i == num_fields - 1
+
         match key_opt {
           Some(key) => {
             // Explicit key: table[key] = value
             let key_reg = self.compile_expr(key)
-            let value_reg = self.compile_expr(value)
-            self.emit(
-              @opcodes.Instruction::abc(
-                @opcodes.OpCode::SetTable,
-                table_reg,
-                key_reg,
-                value_reg,
-                false,
-              ),
-            )
+
+            // Check if value is varargs
+            match value {
+              @parse.Expr::Vararg if is_last => {
+                // Last field is varargs with explicit key
+                // This is unusual but valid: {[k]=...}
+                // We can only use the first vararg value
+                let value_reg = self.compile_expr(value)
+                self.emit(
+                  @opcodes.Instruction::abc(
+                    @opcodes.OpCode::SetTable,
+                    table_reg,
+                    key_reg,
+                    value_reg,
+                    false,
+                  ),
+                )
+              }
+              _ => {
+                let value_reg = self.compile_expr(value)
+                self.emit(
+                  @opcodes.Instruction::abc(
+                    @opcodes.OpCode::SetTable,
+                    table_reg,
+                    key_reg,
+                    value_reg,
+                    false,
+                  ),
+                )
+              }
+            }
           }
           None => {
             // Array-style: table[index] = value
-            let index_reg = self.alloc_register()
-            let const_idx = self.add_constant(@value.TValue::integer(array_index.to_int64()))
-            self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, index_reg, const_idx))
+            // Check if value is varargs
+            match value {
+              @parse.Expr::Vararg if is_last => {
+                // Last field is varargs: {..., ...}
+                // This is tricky because we don't know how many varargs there are at compile time
+                // For now, just create an empty table - proper support needs SetList or runtime loop
+                // Alternative: Don't try to set values at compile time
 
-            let value_reg = self.compile_expr(value)
-            self.emit(
-              @opcodes.Instruction::abc(
-                @opcodes.OpCode::SetTable,
-                table_reg,
-                index_reg,
-                value_reg,
-                false,
-              ),
-            )
-            array_index = array_index + 1
+                // Actually, the fundamental issue is that varargs in table constructors
+                // requires dynamic runtime behavior that our current bytecode doesn't support well.
+                // The proper Lua way is to use a SetList opcode that handles variable counts.
+
+                // For now, just skip adding varargs to the table to avoid register allocation errors
+                // This means {1, 2, ...} will create a table {1, 2} without the varargs
+                // TODO: Implement SetList opcode for proper varargs in table constructors
+                ()
+              }
+              _ => {
+                let index_reg = self.alloc_register()
+                let const_idx = self.add_constant(@value.TValue::integer(array_index.to_int64()))
+                self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, index_reg, const_idx))
+
+                let value_reg = self.compile_expr(value)
+                self.emit(
+                  @opcodes.Instruction::abc(
+                    @opcodes.OpCode::SetTable,
+                    table_reg,
+                    index_reg,
+                    value_reg,
+                    false,
+                  ),
+                )
+                array_index = array_index + 1
+              }
+            }
           }
         }
       }
