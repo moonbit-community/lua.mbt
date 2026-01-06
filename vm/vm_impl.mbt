@@ -125,7 +125,14 @@ pub fn execute_instruction(
         _ =>
           raise VMError::RuntimeError(message="Invalid register access in MOVE")
       }
-      state.set(base + a + 1, value) catch {
+      let target_index = base + a + 1
+
+      // Ensure stack is large enough for this write (like LoadK does)
+      while state.stack_size() < target_index {
+        state.push(@value.TValue::nil())
+      }
+
+      state.set(target_index, value) catch {
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in MOVE")
       }
@@ -885,7 +892,14 @@ pub fn execute_instruction(
           )
       }
 
-      state.set(base + a + 1, result) catch {
+      let target_index = base + a + 1
+
+      // Ensure stack is large enough for this write
+      while state.stack_size() < target_index {
+        state.push(@value.TValue::nil())
+      }
+
+      state.set(target_index, result) catch {
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in GETTABLE")
       }
@@ -982,7 +996,14 @@ pub fn execute_instruction(
       let value = state.get_global(name) catch {
         err => raise VMError::RuntimeError(message="Unexpected error getting global '\{name}': \{err}")
       }
-      state.set(base + a + 1, value) catch {
+      let target_index = base + a + 1
+
+      // Ensure stack is large enough for this write
+      while state.stack_size() < target_index {
+        state.push(@value.TValue::nil())
+      }
+
+      state.set(target_index, value) catch {
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in GETGLOBAL")
       }
@@ -1079,6 +1100,54 @@ pub fn execute_instruction(
       let desired_stack_size = base + a + num_to_copy
       while state.stack_size() > desired_stack_size {
         ignore(state.pop() catch { _ => @value.TValue::nil() })
+      }
+
+      ExecutionResult::Continue
+    }
+    @opcodes.OpCode::SetList => {
+      // SetList: R[A][C+i] := R[A+i], 1 <= i <= B
+      // Set B consecutive table elements starting at index C
+      let a = instr.get_a()
+      let b = instr.get_b()
+      let c = instr.get_c()
+
+      // Get table from R[A]
+      let table_val = state.get(base + a + 1) catch {
+        _ =>
+          raise VMError::RuntimeError(message="Invalid register access in SETLIST")
+      }
+
+      let table = match table_val {
+        @value.TValue::Table(t) => t
+        _ =>
+          raise VMError::InvalidOperation(
+            message="Attempt to use SetList on non-table value",
+          )
+      }
+
+      // Determine how many elements to set
+      // B=0 means all values from R[A+1] to top of stack
+      let num_elements = if b == 0 {
+        // All values from R[A+1] to stack top
+        let stack_top = state.stack_size()
+        let start_pos = base + a + 1
+        if stack_top > start_pos {
+          stack_top - start_pos
+        } else {
+          0
+        }
+      } else {
+        b
+      }
+
+      // Set elements in table
+      for i = 1; i <= num_elements; i = i + 1 {
+        // Read value from R[A+i]
+        let val = state.get(base + a + i + 1) catch {
+          _ => @value.TValue::nil()
+        }
+        // Set in table at index C+i
+        table.set_int(c + i, val)
       }
 
       ExecutionResult::Continue

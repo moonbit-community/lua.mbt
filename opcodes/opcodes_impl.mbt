@@ -120,12 +120,13 @@ pub fn opcode_to_int(op : OpCode) -> Int {
     NewTable => 30
     GetTable => 31
     SetTable => 32
-    Closure => 33
-    GetUpval => 34
-    SetUpval => 35
-    GetGlobal => 36
-    SetGlobal => 37
-    Vararg => 38
+    SetList => 33
+    Closure => 34
+    GetUpval => 35
+    SetUpval => 36
+    GetGlobal => 37
+    SetGlobal => 38
+    Vararg => 39
   }
 }
 
@@ -166,12 +167,13 @@ fn int_to_opcode(i : Int) -> OpCode {
     30 => OpCode::NewTable
     31 => OpCode::GetTable
     32 => OpCode::SetTable
-    33 => OpCode::Closure
-    34 => OpCode::GetUpval
-    35 => OpCode::SetUpval
-    36 => OpCode::GetGlobal
-    37 => OpCode::SetGlobal
-    38 => OpCode::Vararg
+    33 => OpCode::SetList
+    34 => OpCode::Closure
+    35 => OpCode::GetUpval
+    36 => OpCode::SetUpval
+    37 => OpCode::GetGlobal
+    38 => OpCode::SetGlobal
+    39 => OpCode::Vararg
     _ => OpCode::Move // Default fallback
   }
 }
@@ -320,6 +322,7 @@ pub fn op_mode(op : OpCode) -> OpMode {
     | Call
     | GetTable
     | SetTable
+    | SetList
     | GetUpval
     | SetUpval => OpMode::ABC
     // ABx format

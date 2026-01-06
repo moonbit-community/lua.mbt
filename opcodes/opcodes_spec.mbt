@@ -62,6 +62,7 @@ pub(all) enum OpCode {
   NewTable // R[A] := {}
   GetTable // R[A] := R[B][R[C]]
   SetTable // R[A][R[B]] := R[C]
+  SetList // R[A][C+i] := R[A+i], 1 <= i <= B (set B consecutive elements starting at index C)
 
   // Closure/Upvalues
   Closure // R[A] := closure(KPROTO[Bx])

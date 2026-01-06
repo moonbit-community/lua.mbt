@@ -2317,6 +2317,9 @@ pub fn Compiler::compile_expr(
       let table_reg = self.alloc_register()
       self.emit(@opcodes.Instruction::abc(@opcodes.OpCode::NewTable, table_reg, 0, 0, false))
 
+      // Save register state - we'll free temp registers after filling the table
+      let saved_next_register = self.next_register
+
       // Fill table with fields
       let mut array_index = 1
       let num_fields = fields.length()
@@ -2367,18 +2370,38 @@ pub fn Compiler::compile_expr(
             match value {
               @parse.Expr::Vararg if is_last => {
                 // Last field is varargs: {..., ...}
-                // This is tricky because we don't know how many varargs there are at compile time
-                // For now, just create an empty table - proper support needs SetList or runtime loop
-                // Alternative: Don't try to set values at compile time
+                // Use SetList opcode to handle variable number of varargs
+                // Load varargs into consecutive registers starting right after table
+                // SetList expects values at R[A+1], R[A+2], etc. where A is the table
 
-                // Actually, the fundamental issue is that varargs in table constructors
-                // requires dynamic runtime behavior that our current bytecode doesn't support well.
-                // The proper Lua way is to use a SetList opcode that handles variable counts.
+                // Emit VARARG to load all varargs starting at table_reg + 1
+                // C=0 means copy all available varargs
+                self.emit(
+                  @opcodes.Instruction::abc(
+                    @opcodes.OpCode::Vararg,
+                    table_reg + 1,  // Load starting right after table
+                    0,
+                    0,  // C=0 means all varargs
+                    false,
+                  ),
+                )
 
-                // For now, just skip adding varargs to the table to avoid register allocation errors
-                // This means {1, 2, ...} will create a table {1, 2} without the varargs
-                // TODO: Implement SetList opcode for proper varargs in table constructors
-                ()
+                // Now emit SetList to set them in the table
+                // SetList: R[A][C+i] := R[A+i], 1 <= i <= B
+                // A = table_reg
+                // B = 0 (means all values from R[A+1] to stack top)
+                // C = array_index - 1 (base index in table where to start)
+                self.emit(
+                  @opcodes.Instruction::abc(
+                    @opcodes.OpCode::SetList,
+                    table_reg,
+                    0,  // B=0: use all values to stack top
+                    array_index - 1,  // C: base index
+                    false,
+                  ),
+                )
+
+                // Note: array_index doesn't need updating as this is the last field
               }
               _ => {
                 let index_reg = self.alloc_register()
@@ -2402,6 +2425,9 @@ pub fn Compiler::compile_expr(
         }
       }
 
+      // Restore register state to free temporary registers
+      // Keep table_reg allocated (+1) but free all temps used for field expressions
+      self.next_register = saved_next_register + 1
       table_reg
     }
     @parse.Expr::Index(table_expr, index_expr) => {
