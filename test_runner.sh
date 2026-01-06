@@ -1,8 +1,6 @@
 #!/bin/bash
 # Test runner for official Lua test suite
 
-cd /Users/wenyuxiang/Workspace/lua.mbt
-
 echo "Testing Official Lua 5.4 Test Suite"
 echo "===================================="
 echo ""

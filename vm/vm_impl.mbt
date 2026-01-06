@@ -1881,12 +1881,13 @@ fn call_native_function(
     // Table library functions
     "table.insert" => {
       // table.insert(table, [pos,] value)
-      if args.length() == 0 {
-        raise VMError::InvalidOperation(message="table.insert requires a table argument")
+      // Must have 2 or 3 arguments exactly
+      if args.length() < 2 || args.length() > 3 {
+        raise VMError::InvalidOperation(message="wrong number of arguments to 'insert'")
       }
       let table = match args[0] {
         @value.TValue::Table(t) => t
-        _ => raise VMError::InvalidOperation(message="table.insert requires a table")
+        _ => raise VMError::InvalidOperation(message="bad argument #1 to 'insert' (table expected)")
       }
 
       if args.length() == 2 {
@@ -1894,12 +1895,12 @@ fn call_native_function(
         let value = args[1]
         let len = table.length()
         table.set_int(len + 1, value)
-      } else if args.length() >= 3 {
+      } else {
         // table.insert(table, pos, value) - insert at position
         let pos = try {
           args[1].to_integer()
         } catch {
-          _ => raise VMError::InvalidOperation(message="table.insert position must be a number")
+          _ => raise VMError::InvalidOperation(message="bad argument #2 to 'insert' (number expected)")
         }
         let value = args[2]
 
@@ -1911,8 +1912,6 @@ fn call_native_function(
         }
         // Insert the new value
         table.set_int(pos.to_int(), value)
-      } else {
-        raise VMError::InvalidOperation(message="table.insert requires at least 2 arguments")
       }
       []  // Returns nothing
     }
