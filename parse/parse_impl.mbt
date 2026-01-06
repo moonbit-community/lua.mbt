@@ -33,6 +33,146 @@ fn parse_hex(hex_str : String) -> Int? {
 }
 
 ///|
+/// Parse a hexadecimal float (e.g., 0x1.8p2)
+/// Format: [hex_digits][.[hex_digits]][p[+-]?[dec_digits]]
+fn parse_hex_float(hex_str : String) -> Double? {
+  let mut i = 0
+  let len = hex_str.length()
+
+  // Parse integer part
+  let mut int_value : Double = 0.0
+  while i < len {
+    let c = hex_str[i]
+    if c == '.' || c == 'p' || c == 'P' {
+      break
+    }
+    let digit = match c {
+      '0' => 0
+      '1' => 1
+      '2' => 2
+      '3' => 3
+      '4' => 4
+      '5' => 5
+      '6' => 6
+      '7' => 7
+      '8' => 8
+      '9' => 9
+      'a' | 'A' => 10
+      'b' | 'B' => 11
+      'c' | 'C' => 12
+      'd' | 'D' => 13
+      'e' | 'E' => 14
+      'f' | 'F' => 15
+      _ => return None
+    }
+    int_value = int_value * 16.0 + digit.to_double()
+    i = i + 1
+  }
+
+  let mut value = int_value
+
+  // Parse fractional part if present
+  if i < len {
+    let c = hex_str[i]
+    if c == '.' {
+      i = i + 1  // skip '.'
+      let mut frac_value : Double = 0.0
+      let mut frac_digits = 0
+      while i < len {
+        let c2 = hex_str[i]
+        if c2 == 'p' || c2 == 'P' {
+          break
+        }
+        let digit = match c2 {
+          '0' => 0
+          '1' => 1
+          '2' => 2
+          '3' => 3
+          '4' => 4
+          '5' => 5
+          '6' => 6
+          '7' => 7
+          '8' => 8
+          '9' => 9
+          'a' | 'A' => 10
+          'b' | 'B' => 11
+          'c' | 'C' => 12
+          'd' | 'D' => 13
+          'e' | 'E' => 14
+          'f' | 'F' => 15
+          _ => return None
+        }
+        frac_value = frac_value * 16.0 + digit.to_double()
+        frac_digits = frac_digits + 1
+        i = i + 1
+      }
+
+      // Add fractional part
+      if frac_digits > 0 {
+        let mut divisor = 1.0
+        let mut j = 0
+        while j < frac_digits {
+          divisor = divisor * 16.0
+          j = j + 1
+        }
+        value = value + (frac_value / divisor)
+      }
+    }
+  }
+
+  // Parse binary exponent if present
+  if i < len {
+    let c = hex_str[i]
+    if c == 'p' || c == 'P' {
+      i = i + 1  // skip 'p' or 'P'
+
+      // Check for sign
+      let mut exp_sign = 1
+      if i < len {
+        let sign_char = hex_str[i]
+        if sign_char == '+' {
+          i = i + 1
+        } else if sign_char == '-' {
+          exp_sign = -1
+          i = i + 1
+        }
+      }
+
+      // Parse exponent value (decimal)
+      let mut exp_value = 0
+      while i < len {
+        let c2 = hex_str[i]
+        if c2 >= '0' && c2 <= '9' {
+          exp_value = exp_value * 10 + (c2.to_int() - '0'.to_int())
+        } else {
+          return None
+        }
+        i = i + 1
+      }
+
+      // Apply exponent: value * 2^exp
+      let exponent = exp_sign * exp_value
+      if exponent >= 0 {
+        let mut k = 0
+        while k < exponent {
+          value = value * 2.0
+          k = k + 1
+        }
+      } else {
+        let mut k = 0
+        while k < -exponent {
+          value = value / 2.0
+          k = k + 1
+        }
+      }
+    }
+  }
+
+  Some(value)
+}
+
+
+///|
 /// Parser state
 pub struct Parser {
   lexer : @lex.Lexer
@@ -749,15 +889,29 @@ fn Parser::parse_primary(self : Parser) -> Expr raise ParseError {
       let tok = self.advance()
       // Parse the number
       let num = if tok.lexeme.starts_with("0x") || tok.lexeme.starts_with("0X") {
-        // Parse hex number
+        // Parse hex number (could be integer or float)
         let hex_str = tok.lexeme.substring(start=2) // Skip "0x" or "0X"
-        match parse_hex(hex_str) {
-          Some(v) => v.to_double()
-          None =>
-            raise ParseError::InvalidSyntax(
-              message="Invalid hex number literal",
-              line=tok.line,
-            )
+
+        // Check if it contains decimal point or exponent (p/P) -> hex float
+        if hex_str.contains(".") || hex_str.contains("p") || hex_str.contains("P") {
+          match parse_hex_float(hex_str) {
+            Some(v) => v
+            None =>
+              raise ParseError::InvalidSyntax(
+                message="Invalid hex float literal",
+                line=tok.line,
+              )
+          }
+        } else {
+          // Hex integer
+          match parse_hex(hex_str) {
+            Some(v) => v.to_double()
+            None =>
+              raise ParseError::InvalidSyntax(
+                message="Invalid hex number literal",
+                line=tok.line,
+              )
+          }
         }
       } else {
         @strconv.parse_double(tok.lexeme) catch {

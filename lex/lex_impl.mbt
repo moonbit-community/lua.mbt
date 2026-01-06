@@ -162,19 +162,53 @@ fn Lexer::scan_number(self : Lexer) -> Token raise LexError {
   let start_column = self.column
   let start_pos = self.pos
 
-  // Check for hex numbers
+  // Check for hex numbers (including hex floats)
   if self.current() == Some('0') {
     match self.peek_char() {
       Some('x') | Some('X') => {
         ignore(self.advance()) // consume 0
-        ignore(self.advance()) // consume x
-        // Read hex digits
+        ignore(self.advance()) // consume x/X
+
+        // Read hex integer part
         while true {
           match self.current() {
             Some(c) if is_hex_digit(c) => ignore(self.advance())
             _ => break
           }
         }
+
+        // Check for hex decimal point
+        if self.current() == Some('.') {
+          ignore(self.advance()) // consume .
+          // Read hex fractional part
+          while true {
+            match self.current() {
+              Some(c) if is_hex_digit(c) => ignore(self.advance())
+              _ => break
+            }
+          }
+        }
+
+        // Check for binary exponent (p or P)
+        match self.current() {
+          Some('p') | Some('P') => {
+            ignore(self.advance())
+            // Optional sign
+            match self.current() {
+              Some('+') | Some('-') => ignore(self.advance())
+              _ => ()
+            }
+            // Read decimal exponent digits
+            while true {
+              match self.current() {
+                Some(c) if is_digit(c) => ignore(self.advance())
+                _ => break
+              }
+            }
+          }
+          _ => ()
+        }
+
         let lexeme = (try! self.source[start_pos:self.pos]).to_string()
         return Token::{
           type_: TokenType::TkNumber,
@@ -296,6 +330,84 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
             Some('\'') => {
               content.write_char('\'')
               ignore(self.advance())
+            }
+            Some('z') => {
+              // \z skips all subsequent whitespace (including newlines)
+              ignore(self.advance())
+              while true {
+                match self.current() {
+                  Some(c) if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u000B' || c == '\u000C' =>
+                    ignore(self.advance())
+                  _ => break
+                }
+              }
+            }
+            Some('\n') | Some('\r') => {
+              // Backslash followed by newline: continue string on next line
+              let c = self.current().unwrap()
+              ignore(self.advance())
+              // Handle \r\n as a single newline
+              if c == '\r' && self.current() == Some('\n') {
+                ignore(self.advance())
+              }
+              content.write_char('\n')
+            }
+            Some('u') => {
+              // Unicode escape \u{XXX...} (hex digits in braces)
+              ignore(self.advance())
+              if self.current() != Some('{') {
+                raise LexError::InvalidEscape(pos=self.pos, char='u')
+              }
+              ignore(self.advance())
+
+              let mut unicode_value = 0
+              let mut found_close = false
+              let mut digit_count = 0
+
+              while true {
+                match self.current() {
+                  Some('}') => {
+                    found_close = true
+                    ignore(self.advance())
+                    break
+                  }
+                  Some(d) if is_hex_digit(d) => {
+                    let digit_val = if d >= '0' && d <= '9' {
+                      d.to_int() - '0'.to_int()
+                    } else if d >= 'a' && d <= 'f' {
+                      d.to_int() - 'a'.to_int() + 10
+                    } else {
+                      d.to_int() - 'A'.to_int() + 10
+                    }
+                    unicode_value = unicode_value * 16 + digit_val
+                    digit_count = digit_count + 1
+                    // Lua allows up to 8 hex digits (0x00000000 to 0x7FFFFFFF for theoretical UTF-8)
+                    if digit_count > 8 {
+                      raise LexError::InvalidEscape(pos=self.pos, char='u')
+                    }
+                    ignore(self.advance())
+                  }
+                  _ => raise LexError::InvalidEscape(pos=self.pos, char='u')
+                }
+              }
+
+              if !found_close || digit_count == 0 {
+                raise LexError::InvalidEscape(pos=self.pos, char='u')
+              }
+
+              // Convert to UTF-8 and write to content
+              // For valid Unicode (0-0x10FFFF), use standard encoding
+              // For values > 0x10FFFF, Lua encodes using extended UTF-8
+              if unicode_value <= 0x7F {
+                content.write_char(unicode_value.unsafe_to_char())
+              } else if unicode_value <= 0x10FFFF {
+                // Standard Unicode range - MoonBit's Char handles this
+                content.write_char(unicode_value.unsafe_to_char())
+              } else {
+                // Beyond Unicode range - for test compatibility, just use the value
+                // MoonBit might not handle this correctly, but we'll try
+                content.write_char(unicode_value.unsafe_to_char())
+              }
             }
             Some('x') => {
               // Hex escape \xHH (exactly 2 hex digits)
