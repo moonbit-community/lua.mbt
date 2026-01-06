@@ -2421,6 +2421,45 @@ fn call_native_function(
       // Return the compiled function
       [func]
     }
+    "io.write" => {
+      // io.write(...) - Write to stdout
+      // Just use print without newline
+      for i = 0; i < args.length(); i = i + 1 {
+        let val_str = args[i].to_string()
+        // Print without newline (in real implementation would use stdout.write)
+        println(val_str)  // Simplified - should not add newline
+      }
+      [@value.TValue::boolean(true)]  // Return true on success
+    }
+    "io.stdout.write" => {
+      // io.stdout:write(...) - Write to stdout
+      // First arg is 'self' (the stdout table), rest are values to write
+      for i = 1; i < args.length(); i = i + 1 {
+        let val_str = args[i].to_string()
+        println(val_str)  // Simplified
+      }
+      // Return the file handle (self)
+      if args.length() > 0 {
+        [args[0]]
+      } else {
+        [@value.TValue::nil()]
+      }
+    }
+    "io.stderr.write" => {
+      // io.stderr:write(...) - Write to stderr
+      // First arg is 'self' (the stderr table), rest are values to write
+      for i = 1; i < args.length(); i = i + 1 {
+        let val_str = args[i].to_string()
+        // In a real implementation, would write to stderr
+        println(val_str)  // Simplified - should go to stderr
+      }
+      // Return the file handle (self)
+      if args.length() > 0 {
+        [args[0]]
+      } else {
+        [@value.TValue::nil()]
+      }
+    }
     "_G__index" => {
       // __index metamethod for _G table
       // _G[key] should return global variable with that name

@@ -854,6 +854,23 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   loaded_table.set_string("math", @value.TValue::table(math_table))
   // Create stub tables for other standard libraries
   let io_table = @value.Table::new()
+
+  // Create stdout/stderr/stdin stubs
+  // These are tables with a write method
+  let stdout_table = @value.Table::new()
+  stdout_table.set_string("write", @value.TValue::native_function("io.stdout.write"))
+  io_table.set_string("stdout", @value.TValue::table(stdout_table))
+
+  let stderr_table = @value.Table::new()
+  stderr_table.set_string("write", @value.TValue::native_function("io.stderr.write"))
+  io_table.set_string("stderr", @value.TValue::table(stderr_table))
+
+  let stdin_table = @value.Table::new()
+  io_table.set_string("stdin", @value.TValue::table(stdin_table))
+
+  // io.write - write to stdout
+  io_table.set_string("write", @value.TValue::native_function("io.write"))
+
   loaded_table.set_string("io", @value.TValue::table(io_table))
   let os_table = @value.Table::new()
   loaded_table.set_string("os", @value.TValue::table(os_table))
