@@ -145,13 +145,76 @@ fn Lexer::skip_whitespace(self : Lexer) -> Unit {
           ignore(self.advance())
           continue
         }
-        // Single-line comment
+        // Comments starting with --
         if c == '-' {
           match self.peek_char() {
             Some('-') => {
               ignore(self.advance()) // consume first -
               ignore(self.advance()) // consume second -
-              // Skip until end of line
+
+              // Check for multiline comment --[[...]] or --[=[...]=]
+              if self.current() == Some('[') {
+                let save_pos = self.pos
+                let save_line = self.line
+                let save_column = self.column
+
+                ignore(self.advance()) // consume '['
+
+                // Count '=' characters
+                let mut equals_count = 0
+                while self.current() == Some('=') {
+                  equals_count = equals_count + 1
+                  ignore(self.advance())
+                }
+
+                // Check if this is a long comment
+                if self.current() == Some('[') {
+                  ignore(self.advance()) // consume second '['
+
+                  // Skip until closing delimiter
+                  while true {
+                    match self.current() {
+                      None => break // Unclosed comment, but continue lexing
+                      Some(']') => {
+                        // Check if this is the closing bracket
+                        let check_pos = self.pos
+                        let check_line = self.line
+                        let check_column = self.column
+
+                        ignore(self.advance()) // consume ']'
+
+                        // Count '=' characters
+                        let mut found_equals = 0
+                        while self.current() == Some('=') && found_equals < equals_count {
+                          found_equals = found_equals + 1
+                          ignore(self.advance())
+                        }
+
+                        // Check for final ']'
+                        if found_equals == equals_count && self.current() == Some(']') {
+                          ignore(self.advance()) // consume final ']'
+                          break  // Found closing delimiter
+                        } else {
+                          // False alarm, restore position and continue
+                          self.pos = check_pos
+                          self.line = check_line
+                          self.column = check_column
+                          ignore(self.advance())
+                        }
+                      }
+                      Some(_) => ignore(self.advance())
+                    }
+                  }
+                  continue  // Done with multiline comment, look for more whitespace
+                } else {
+                  // Not a long comment, restore and treat as single-line
+                  self.pos = save_pos
+                  self.line = save_line
+                  self.column = save_column
+                }
+              }
+
+              // Single-line comment: skip until end of line
               while true {
                 match self.current() {
                   None => break
