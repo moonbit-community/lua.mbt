@@ -785,6 +785,8 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   // Math constants
   math_table.set_string("pi", @value.TValue::number(3.14159265358979323846))
   math_table.set_string("huge", @value.TValue::number(1.0 / 0.0))  // infinity
+  math_table.set_string("maxinteger", @value.TValue::integer(9223372036854775807L))  // 2^63 - 1
+  math_table.set_string("mininteger", @value.TValue::integer(-9223372036854775808L))  // -2^63
 
   // Math functions
   math_table.set_string("abs", @value.TValue::native_function("math.abs"))
