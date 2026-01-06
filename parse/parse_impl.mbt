@@ -861,20 +861,44 @@ fn Parser::parse_postfix(self : Parser) -> Expr raise ParseError {
         expr = Expr::Field(expr, field_tok.lexeme)
       }
       @lex.TokenType::TkColon => {
-        // Method call: obj:method(args)
+        // Method call: obj:method(args) or obj:method"str" or obj:method{...}
         ignore(self.advance())
         let method_tok = self.expect(@lex.TokenType::TkName)
-        ignore(self.expect(@lex.TokenType::TkLparen))
-        let args : Array[Expr] = []
-        if !self.check(@lex.TokenType::TkRparen) {
-          args.push(self.parse_expr())
-          while self.check(@lex.TokenType::TkComma) {
+
+        // Check for different call syntaxes
+        match self.peek() {
+          @lex.TokenType::TkLparen => {
+            // obj:method(args)
             ignore(self.advance())
-            args.push(self.parse_expr())
+            let args : Array[Expr] = []
+            if !self.check(@lex.TokenType::TkRparen) {
+              args.push(self.parse_expr())
+              while self.check(@lex.TokenType::TkComma) {
+                ignore(self.advance())
+                args.push(self.parse_expr())
+              }
+            }
+            ignore(self.expect(@lex.TokenType::TkRparen))
+            expr = Expr::MethodCall(expr, method_tok.lexeme, args)
+          }
+          @lex.TokenType::TkString => {
+            // obj:method"string" (without parentheses)
+            let tok = self.advance()
+            expr = Expr::MethodCall(expr, method_tok.lexeme, [Expr::String(tok.lexeme)])
+          }
+          @lex.TokenType::TkLbrace => {
+            // obj:method{table} (without parentheses)
+            let table = self.parse_table_constructor()
+            expr = Expr::MethodCall(expr, method_tok.lexeme, [table])
+          }
+          _ => {
+            // No arguments - this is invalid, method calls need arguments
+            raise ParseError::InvalidSyntax(
+              message="method call requires arguments",
+              line=self.lexer.current_line()
+            )
           }
         }
-        ignore(self.expect(@lex.TokenType::TkRparen))
-        expr = Expr::MethodCall(expr, method_tok.lexeme, args)
       }
       _ => break
     }
