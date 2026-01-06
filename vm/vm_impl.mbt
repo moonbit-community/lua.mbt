@@ -2439,18 +2439,19 @@ fn call_native_function(
         _ => raise VMError::InvalidOperation(message="require: module name must be a string")
       }
 
-      // Get package.loaded table
+      // Get package table
       let package_val = state.get_global("package") catch {
         _ => raise VMError::InvalidOperation(message="require: package table not found")
       }
-      let loaded_table = match package_val {
-        @value.TValue::Table(pkg_tbl) => {
-          match pkg_tbl.get_string("loaded") {
-            @value.TValue::Table(tbl) => tbl
-            _ => raise VMError::InvalidOperation(message="require: package.loaded is not a table")
-          }
-        }
+      let package_table = match package_val {
+        @value.TValue::Table(pkg_tbl) => pkg_tbl
         _ => raise VMError::InvalidOperation(message="require: package is not a table")
+      }
+
+      // Get package.loaded table
+      let loaded_table = match package_table.get_string("loaded") {
+        @value.TValue::Table(tbl) => tbl
+        _ => raise VMError::InvalidOperation(message="require: package.loaded is not a table")
       }
 
       // Check if module is already loaded
@@ -2459,12 +2460,106 @@ fn call_native_function(
         return [existing]
       }
 
-      // For standard libraries, they should already be in package.loaded
-      // If we get here and it's a standard library name, return error
-      // For now, we only support standard libraries that are pre-loaded
-      raise VMError::RuntimeError(
-        message="require: module '\{modname}' not found (only standard libraries supported)",
-      )
+      // Build error message listing all attempted locations
+      let error_parts : Array[String] = []
+      error_parts.push("module '\{modname}' not found:")
+
+      // Check package.preload
+      let preload_table = match package_table.get_string("preload") {
+        @value.TValue::Table(tbl) => tbl
+        _ => @value.Table::new()
+      }
+      let preload_func = preload_table.get_string(modname)
+      if preload_func.is_nil() {
+        error_parts.push("\tno field package.preload['\{modname}']")
+      }
+
+      // Search using package.path (Lua files)
+      let path_str = match package_table.get_string("path") {
+        @value.TValue::String(s) => s
+        _ => {
+          // package.path is not a string - raise error
+          raise VMError::RuntimeError(
+            message="error loading module (package.path is not a string)"
+          )
+        }
+      }
+      if path_str.length() > 0 {
+        // Use package.searchpath to get formatted error message
+        let searchpath_result = call_native_function(
+          state,
+          "package.searchpath",
+          [@value.TValue::string(modname), @value.TValue::string(path_str)]
+        )
+        // searchpath returns [nil, error_message] when not found
+        if searchpath_result.length() >= 2 {
+          match searchpath_result[1] {
+            @value.TValue::String(err_msg) => {
+              // Extract just the file paths from searchpath error
+              // Skip first line by finding first newline
+              let mut start = 0
+              while start < err_msg.length() && err_msg[start] != '\n' {
+                start = start + 1
+              }
+              // Skip the newline itself
+              start = start + 1
+              // Add rest of message (all the "\tno file" lines)
+              if start < err_msg.length() {
+                let remaining = try {
+                  err_msg[start:err_msg.length()].to_string()
+                } catch {
+                  _ => ""
+                }
+                error_parts.push(remaining)
+              }
+            }
+            _ => ()
+          }
+        }
+      }
+
+      // Search using package.cpath (C files)
+      let cpath_str = match package_table.get_string("cpath") {
+        @value.TValue::String(s) => s
+        _ => ""
+      }
+      if cpath_str.length() > 0 {
+        // Use package.searchpath to get formatted error message
+        let searchpath_result = call_native_function(
+          state,
+          "package.searchpath",
+          [@value.TValue::string(modname), @value.TValue::string(cpath_str)]
+        )
+        // searchpath returns [nil, error_message] when not found
+        if searchpath_result.length() >= 2 {
+          match searchpath_result[1] {
+            @value.TValue::String(err_msg) => {
+              // Extract just the file paths from searchpath error
+              // Skip first line by finding first newline
+              let mut start = 0
+              while start < err_msg.length() && err_msg[start] != '\n' {
+                start = start + 1
+              }
+              // Skip the newline itself
+              start = start + 1
+              // Add rest of message (all the "\tno file" lines)
+              if start < err_msg.length() {
+                let remaining = try {
+                  err_msg[start:err_msg.length()].to_string()
+                } catch {
+                  _ => ""
+                }
+                error_parts.push(remaining)
+              }
+            }
+            _ => ()
+          }
+        }
+      }
+
+      // Join all error parts and raise error
+      let full_error = error_parts.join("\n")
+      raise VMError::RuntimeError(message=full_error)
     }
     "package.searchpath" => {
       // package.searchpath(name, path, [sep], [rep])
@@ -2494,7 +2589,21 @@ fn call_native_function(
 
       // For simplicity, we don't actually search files - just return error
       // Build error message with attempted paths
-      let templates = path.split(";")
+      // Manual split by ";"
+      let templates : Array[String] = []
+      let mut current = ""
+      for i = 0; i < path.length(); i = i + 1 {
+        if path[i] == ';' {
+          templates.push(current)
+          current = ""
+        } else {
+          current = current + path[i].to_int().unsafe_to_char().to_string()
+        }
+      }
+      if current.length() > 0 {
+        templates.push(current)
+      }
+
       let error_lines : Array[String] = []
       for template in templates {
         // Replace ? with module name
@@ -2503,7 +2612,7 @@ fn call_native_function(
           if template[i] == '?' {
             filepath = filepath + name
           } else {
-            filepath = filepath + template[i].to_string()
+            filepath = filepath + template[i].to_int().unsafe_to_char().to_string()
           }
         }
         error_lines.push("\tno file '\{filepath}'")
