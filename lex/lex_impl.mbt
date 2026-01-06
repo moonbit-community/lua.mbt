@@ -15,7 +15,24 @@ pub struct Lexer {
 ///|
 /// Create a new lexer from source code
 pub fn Lexer::new(source : String) -> Lexer {
-  Lexer::{ source, pos: 0, line: 1, column: 1, peek: None }
+  let lexer = Lexer::{ source, pos: 0, line: 1, column: 1, peek: None }
+
+  // Skip shebang on first line (Unix script compatibility)
+  // If first line starts with #, skip it
+  if lexer.current() == Some('#') {
+    while true {
+      match lexer.current() {
+        None => break
+        Some('\n') => {
+          ignore(lexer.advance())
+          break
+        }
+        _ => ignore(lexer.advance())
+      }
+    }
+  }
+
+  lexer
 }
 
 ///|
