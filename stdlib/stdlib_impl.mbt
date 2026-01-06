@@ -873,8 +873,33 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
 
   loaded_table.set_string("io", @value.TValue::table(io_table))
   let os_table = @value.Table::new()
+
+  // Add os module functions (mostly stubs)
+  os_table.set_string("clock", @value.TValue::native_function("os.clock"))
+  os_table.set_string("date", @value.TValue::native_function("os.date"))
+  os_table.set_string("difftime", @value.TValue::native_function("os.difftime"))
+  os_table.set_string("execute", @value.TValue::native_function("os.execute"))
+  os_table.set_string("exit", @value.TValue::native_function("os.exit"))
+  os_table.set_string("getenv", @value.TValue::native_function("os.getenv"))
+  os_table.set_string("remove", @value.TValue::native_function("os.remove"))
+  os_table.set_string("rename", @value.TValue::native_function("os.rename"))
+  os_table.set_string("setlocale", @value.TValue::native_function("os.setlocale"))
+  os_table.set_string("time", @value.TValue::native_function("os.time"))
+  os_table.set_string("tmpname", @value.TValue::native_function("os.tmpname"))
+
   loaded_table.set_string("os", @value.TValue::table(os_table))
   let coroutine_table = @value.Table::new()
+
+  // Add coroutine module functions (all stubs - coroutines not supported)
+  coroutine_table.set_string("create", @value.TValue::native_function("coroutine.create"))
+  coroutine_table.set_string("resume", @value.TValue::native_function("coroutine.resume"))
+  coroutine_table.set_string("running", @value.TValue::native_function("coroutine.running"))
+  coroutine_table.set_string("status", @value.TValue::native_function("coroutine.status"))
+  coroutine_table.set_string("wrap", @value.TValue::native_function("coroutine.wrap"))
+  coroutine_table.set_string("yield", @value.TValue::native_function("coroutine.yield"))
+  coroutine_table.set_string("isyieldable", @value.TValue::native_function("coroutine.isyieldable"))
+  coroutine_table.set_string("close", @value.TValue::native_function("coroutine.close"))
+
   loaded_table.set_string("coroutine", @value.TValue::table(coroutine_table))
   let debug_table = @value.Table::new()
 

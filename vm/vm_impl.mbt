@@ -2610,6 +2610,158 @@ fn call_native_function(
       let registry = @value.Table::new()
       [@value.TValue::table(registry)]
     }
+    // OS module functions (mostly stubs)
+    "os.clock" => {
+      // os.clock() - Returns CPU time used (in seconds)
+      // Stub: return a dummy value
+      [@value.TValue::number(1.0)]
+    }
+    "os.date" => {
+      // os.date([format [, time]]) - Returns formatted date/time
+      // Stub: return a simple date string
+      let format = if args.length() > 0 {
+        match args[0] {
+          @value.TValue::String(s) => s
+          _ => "%c"
+        }
+      } else {
+        "%c"
+      }
+      // Return dummy date based on format
+      if format == "*t" {
+        // Return table with date fields
+        let t = @value.Table::new()
+        t.set_string("year", @value.TValue::integer(2024L))
+        t.set_string("month", @value.TValue::integer(1L))
+        t.set_string("day", @value.TValue::integer(1L))
+        t.set_string("hour", @value.TValue::integer(0L))
+        t.set_string("min", @value.TValue::integer(0L))
+        t.set_string("sec", @value.TValue::integer(0L))
+        t.set_string("wday", @value.TValue::integer(1L))
+        t.set_string("yday", @value.TValue::integer(1L))
+        t.set_string("isdst", @value.TValue::boolean(false))
+        [@value.TValue::table(t)]
+      } else {
+        [@value.TValue::string("Mon Jan  1 00:00:00 2024")]
+      }
+    }
+    "os.difftime" => {
+      // os.difftime(t2, t1) - Returns difference in seconds
+      if args.length() < 2 {
+        return [@value.TValue::number(0.0)]
+      }
+      let t2 = match args[0] {
+        @value.TValue::Integer(i) => i.to_double()
+        @value.TValue::Number(n) => n
+        _ => 0.0
+      }
+      let t1 = match args[1] {
+        @value.TValue::Integer(i) => i.to_double()
+        @value.TValue::Number(n) => n
+        _ => 0.0
+      }
+      [@value.TValue::number(t2 - t1)]
+    }
+    "os.execute" => {
+      // os.execute([command]) - Execute a shell command
+      // Stub: return success
+      [@value.TValue::boolean(true), @value.TValue::string("exit"), @value.TValue::integer(0L)]
+    }
+    "os.exit" => {
+      // os.exit([code [, close]])
+      // Stub: raise error to stop execution
+      raise VMError::RuntimeError(message="os.exit called")
+    }
+    "os.getenv" => {
+      // os.getenv(varname) - Get environment variable
+      // Stub: return nil (no env vars)
+      [@value.TValue::nil()]
+    }
+    "os.remove" => {
+      // os.remove(filename) - Remove a file
+      // Stub: return success
+      [@value.TValue::boolean(true)]
+    }
+    "os.rename" => {
+      // os.rename(oldname, newname) - Rename a file
+      // Stub: return success
+      [@value.TValue::boolean(true)]
+    }
+    "os.setlocale" => {
+      // os.setlocale(locale [, category])
+      // Stub: return "C" (default locale)
+      [@value.TValue::string("C")]
+    }
+    "os.time" => {
+      // os.time([table]) - Returns current time as number
+      // Stub: return a fixed timestamp
+      if args.length() > 0 {
+        match args[0] {
+          @value.TValue::Table(_) => {
+            // Should parse table and return timestamp
+            // Stub: return dummy value
+            [@value.TValue::integer(1704067200L)]  // Jan 1, 2024
+          }
+          _ => [@value.TValue::integer(1704067200L)]
+        }
+      } else {
+        [@value.TValue::integer(1704067200L)]
+      }
+    }
+    "os.tmpname" => {
+      // os.tmpname() - Returns a temp file name
+      // Stub: return a dummy name
+      [@value.TValue::string("/tmp/lua_XXXXXX")]
+    }
+    // Coroutine module functions (all stubs - not supported)
+    "coroutine.create" => {
+      // coroutine.create(f) - Creates a new coroutine
+      // Stub: return the function as-is (won't work as coroutine)
+      if args.length() > 0 {
+        [args[0]]
+      } else {
+        [@value.TValue::nil()]
+      }
+    }
+    "coroutine.resume" => {
+      // coroutine.resume(co [, val1, ...]) - Resume a coroutine
+      // Stub: raise error
+      raise VMError::InvalidOperation(message="coroutines not supported")
+    }
+    "coroutine.running" => {
+      // coroutine.running() - Returns running coroutine
+      // Stub: return nil (not in a coroutine)
+      [@value.TValue::nil(), @value.TValue::boolean(true)]
+    }
+    "coroutine.status" => {
+      // coroutine.status(co) - Returns coroutine status
+      // Stub: return "dead"
+      [@value.TValue::string("dead")]
+    }
+    "coroutine.wrap" => {
+      // coroutine.wrap(f) - Creates a wrapped coroutine
+      // Stub: return the function as-is
+      if args.length() > 0 {
+        [args[0]]
+      } else {
+        [@value.TValue::nil()]
+      }
+    }
+    "coroutine.yield" => {
+      // coroutine.yield(...) - Yields from a coroutine
+      // Stub: raise error
+      raise VMError::InvalidOperation(message="coroutines not supported")
+    }
+    "coroutine.isyieldable" => {
+      // coroutine.isyieldable() - Check if can yield
+      // Stub: return false (can't yield)
+      [@value.TValue::boolean(false)]
+    }
+    "coroutine.close" => {
+      // coroutine.close(co) - Close a coroutine
+      // Stub: return success
+      [@value.TValue::boolean(true)]
+    }
     "require" => {
       // require(modname)
       // Load a module if not already loaded, return the module value
