@@ -2491,6 +2491,125 @@ fn call_native_function(
       state.set_global(key, value)
       []
     }
+    // Debug module functions (mostly stubs - return dummy values)
+    "debug.getinfo" => {
+      // debug.getinfo([thread,] f [, what])
+      // Returns a table with info about a function
+      // Stub: return empty table
+      let info_table = @value.Table::new()
+      info_table.set_string("source", @value.TValue::string("=[C]"))
+      info_table.set_string("short_src", @value.TValue::string("[C]"))
+      info_table.set_string("linedefined", @value.TValue::integer(0L))
+      info_table.set_string("lastlinedefined", @value.TValue::integer(0L))
+      info_table.set_string("what", @value.TValue::string("C"))
+      info_table.set_string("currentline", @value.TValue::integer(-1L))
+      info_table.set_string("nups", @value.TValue::integer(0L))
+      info_table.set_string("nparams", @value.TValue::integer(0L))
+      info_table.set_string("isvararg", @value.TValue::boolean(false))
+      info_table.set_string("name", @value.TValue::nil())
+      info_table.set_string("namewhat", @value.TValue::string(""))
+      [@value.TValue::table(info_table)]
+    }
+    "debug.sethook" => {
+      // debug.sethook([thread,] hook, mask [, count])
+      // Stub: does nothing
+      []
+    }
+    "debug.gethook" => {
+      // debug.gethook([thread])
+      // Returns: function, mask, count
+      // Stub: return nil (no hook set)
+      [@value.TValue::nil(), @value.TValue::string(""), @value.TValue::integer(0L)]
+    }
+    "debug.getlocal" => {
+      // debug.getlocal([thread,] f, local)
+      // Returns: name, value
+      // Stub: return nil (no local found)
+      [@value.TValue::nil()]
+    }
+    "debug.setlocal" => {
+      // debug.setlocal([thread,] level, local, value)
+      // Stub: return nil (can't set local)
+      [@value.TValue::nil()]
+    }
+    "debug.getupvalue" => {
+      // debug.getupvalue(f, up)
+      // Returns: name, value
+      // Stub: return nil
+      [@value.TValue::nil()]
+    }
+    "debug.setupvalue" => {
+      // debug.setupvalue(f, up, value)
+      // Stub: return nil
+      [@value.TValue::nil()]
+    }
+    "debug.upvalueid" => {
+      // debug.upvalueid(f, n)
+      // Returns a unique identifier for the upvalue
+      // Stub: return a dummy number
+      [@value.TValue::integer(0L)]
+    }
+    "debug.upvaluejoin" => {
+      // debug.upvaluejoin(f1, n1, f2, n2)
+      // Stub: does nothing
+      []
+    }
+    "debug.traceback" => {
+      // debug.traceback([thread,] [message [, level]])
+      // Returns a string with the stack traceback
+      // Stub: return message or simple traceback
+      let message = if args.length() > 0 {
+        match args[0] {
+          @value.TValue::String(s) => s
+          _ => "stack traceback:"
+        }
+      } else {
+        "stack traceback:"
+      }
+      [@value.TValue::string(message)]
+    }
+    "debug.getmetatable" => {
+      // debug.getmetatable(value)
+      // Same as getmetatable but works on all types
+      if args.length() == 0 {
+        return [@value.TValue::nil()]
+      }
+      let mt = match args[0] {
+        @value.TValue::Table(t) => t.get_metatable()
+        _ => @value.TValue::nil()
+      }
+      [mt]
+    }
+    "debug.setmetatable" => {
+      // debug.setmetatable(value, table)
+      // Same as setmetatable but works on all types
+      // Stub: just return the value
+      if args.length() < 2 {
+        return [@value.TValue::nil()]
+      }
+      [@value.TValue::nil()]
+    }
+    "debug.getuservalue" => {
+      // debug.getuservalue(u, n)
+      // Stub: return nil (no uservalue)
+      [@value.TValue::nil()]
+    }
+    "debug.setuservalue" => {
+      // debug.setuservalue(udata, value, n)
+      // Stub: return udata
+      if args.length() > 0 {
+        [args[0]]
+      } else {
+        [@value.TValue::nil()]
+      }
+    }
+    "debug.getregistry" => {
+      // debug.getregistry()
+      // Returns the registry table
+      // Stub: return empty table
+      let registry = @value.Table::new()
+      [@value.TValue::table(registry)]
+    }
     "require" => {
       // require(modname)
       // Load a module if not already loaded, return the module value
