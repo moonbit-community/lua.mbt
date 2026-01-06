@@ -18,7 +18,7 @@ pub fn execute(state : @state.LuaState, proto : @proto.Proto[@value.TValue]) -> 
 
   // Ensure we have enough stack space for registers
   let max_register = calculate_max_register(proto.code)
-  while state.stack_size() <= base + max_register {
+  while state.stack_size() <= base + max_register + 1 {
     state.push(@value.TValue::nil())
   }
 
@@ -1093,14 +1093,9 @@ pub fn execute_instruction(
         }
       }
 
-      // Adjust stack size to match the number of varargs copied
-      // This ensures CALL with B=0 (variable args) only sees the values we just copied
-      // The stack should end right after the last copied vararg
-      // Last written index = base + a + (num_to_copy - 1) + 1 = base + a + num_to_copy
-      let desired_stack_size = base + a + num_to_copy
-      while state.stack_size() > desired_stack_size {
-        ignore(state.pop() catch { _ => @value.TValue::nil() })
-      }
+      // NOTE: Don't shrink stack here! The stack was allocated based on max_register
+      // for the entire function. Shrinking it breaks code that uses higher registers
+      // later in the function (like comparisons in for loops).
 
       ExecutionResult::Continue
     }
@@ -2670,7 +2665,7 @@ fn call_bytecode_function(
 
   // Ensure stack space for new frame
   let max_register = calculate_max_register(func.code)
-  while state.stack_size() <= new_base + max_register {
+  while state.stack_size() <= new_base + max_register + 1 {
     state.push(@value.TValue::nil())
   }
 
@@ -2827,7 +2822,9 @@ fn execute_call(
 
       // Ensure stack space for new frame
       let max_register = calculate_max_register(func.code)
-      while state.stack_size() <= new_base + max_register {
+      // Need stack_size > base + max_register + 1 for register writes
+      // Since base == new_base, allocate to new_base + max_register + 2
+      while state.stack_size() <= new_base + max_register + 1 {
         state.push(@value.TValue::nil())
       }
 
