@@ -1,6 +1,20 @@
 #!/bin/bash
 # Test runner for official Lua test suite
 
+# Build the project first
+echo "Building project..."
+moon build > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "Build failed!"
+  exit 1
+fi
+
+LUA_BIN="target/native/release/build/cmd/cmd.exe"
+if [ ! -f "$LUA_BIN" ]; then
+  echo "Binary not found: $LUA_BIN"
+  exit 1
+fi
+
 echo "Testing Official Lua 5.4 Test Suite"
 echo "===================================="
 echo ""
@@ -14,7 +28,7 @@ for test in refs/lua/testes/*.lua; do
   name=$(basename "$test")
   printf "%-30s" "$name"
 
-  output=$(timeout 2 moon run cmd -- "$test" 2>&1)
+  output=$(timeout 2 "$LUA_BIN" "$test" 2>&1)
   status=$?
 
   if echo "$output" | grep -q "SyntaxError"; then

@@ -761,6 +761,16 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   state.set_global("xpcall", @value.TValue::native_function("xpcall"))
   state.set_global("select", @value.TValue::native_function("select"))
 
+  // Garbage collection (stub - MoonBit handles GC automatically)
+  state.set_global("collectgarbage", @value.TValue::native_function("collectgarbage"))
+
+  // File loading functions
+  state.set_global("dofile", @value.TValue::native_function("dofile"))
+  state.set_global("loadfile", @value.TValue::native_function("loadfile"))
+
+  // Version string
+  state.set_global("_VERSION", @value.TValue::string("Lua 5.4"))
+
   // Dynamic code compilation
   state.set_global("load", @value.TValue::native_function("load"))
 
