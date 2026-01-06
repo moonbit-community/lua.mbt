@@ -1,9 +1,11 @@
 {
   "name": "lua",
   "version": "0.1.0",
+  "preferred-target": "native",
   "deps": {
     "TheWaWaR/clap": "0.2.6",
-    "moonbitlang/x": "0.4.38"
+    "moonbitlang/x": "0.4.38",
+    "moonbitlang/async": "0.16.0"
   },
   "readme": "./README.md",
   "repository": "",

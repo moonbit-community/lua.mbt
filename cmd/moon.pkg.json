@@ -3,7 +3,9 @@
   "import": [
     "TheWaWaR/clap",
     "moonbitlang/x/sys",
-    "moonbitlang/x/fs",
+    "moonbitlang/async",
+    "moonbitlang/async/fs",
+    "moonbitlang/async/io",
     "lua/api"
   ]
 }
