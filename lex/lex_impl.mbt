@@ -930,11 +930,22 @@ fn Lexer::scan_token(self : Lexer) -> Token raise LexError {
         }
         ':' => {
           ignore(self.advance())
-          Token::{
-            type_: TokenType::TkColon,
-            lexeme: ":",
-            line: start_line,
-            column: start_column,
+          // Check for :: (double colon for labels)
+          if self.current() == Some(':') {
+            ignore(self.advance())
+            Token::{
+              type_: TokenType::TkDoubleColon,
+              lexeme: "::",
+              line: start_line,
+              column: start_column,
+            }
+          } else {
+            Token::{
+              type_: TokenType::TkColon,
+              lexeme: ":",
+              line: start_line,
+              column: start_column,
+            }
           }
         }
         ',' => {

@@ -256,6 +256,19 @@ pub fn Parser::parse_stmt(self : Parser) -> Stmt raise ParseError {
       ignore(self.advance())
       Stmt::Break
     }
+    @lex.TokenType::TkGoto => {
+      // Parse: goto label_name
+      ignore(self.advance())
+      let label_tok = self.expect(@lex.TokenType::TkName)
+      Stmt::Goto(label_tok.lexeme)
+    }
+    @lex.TokenType::TkDoubleColon => {
+      // Parse: ::label_name::
+      ignore(self.advance()) // consume first ::
+      let label_tok = self.expect(@lex.TokenType::TkName)
+      ignore(self.expect(@lex.TokenType::TkDoubleColon)) // consume second ::
+      Stmt::Label(label_tok.lexeme)
+    }
     @lex.TokenType::TkSemicolon => {
       // Empty statement - just consume the semicolon
       ignore(self.advance())

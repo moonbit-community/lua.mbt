@@ -83,6 +83,8 @@ pub(all) enum Stmt {
   ForIn(Array[String], Array[Expr], Stmt) // names, iterators, body
   FunctionDef(String, Array[String], Bool, Stmt) // name, params, is_vararg, body
   LocalFunctionDef(String, Array[String], Bool, Stmt)
+  Goto(String) // goto label_name
+  Label(String) // ::label_name::
 } derive(Eq, Show, ToJson)
 
 ///|

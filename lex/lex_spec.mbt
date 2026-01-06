@@ -67,6 +67,7 @@ pub(all) enum TokenType {
   TkRbracket // ]
   TkSemicolon // ;
   TkColon // :
+  TkDoubleColon // ::
   TkComma // ,
   TkDot // .
   TkEof
