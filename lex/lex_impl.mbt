@@ -401,13 +401,40 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
               // For values > 0x10FFFF, Lua encodes using extended UTF-8
               if unicode_value <= 0x7F {
                 content.write_char(unicode_value.unsafe_to_char())
-              } else if unicode_value <= 0x10FFFF {
-                // Standard Unicode range - MoonBit's Char handles this
+              } else if unicode_value < 0x100000 {
+                // Use MoonBit's encoding for values < 0x100000
+                // (MoonBit hangs for values >= 0x100000)
                 content.write_char(unicode_value.unsafe_to_char())
+              } else if unicode_value <= 0x3FFFFFF {
+                // 5-byte UTF-8: 11111000 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx (21 bits)
+                // Manual encoding to avoid MoonBit bug
+                let b1 = 0xF8 | (unicode_value >> 24).land(0x03)
+                let b2 = 0x80 | ((unicode_value >> 18).land(0x3F))
+                let b3 = 0x80 | ((unicode_value >> 12).land(0x3F))
+                let b4 = 0x80 | ((unicode_value >> 6).land(0x3F))
+                let b5 = 0x80 | (unicode_value.land(0x3F))
+                content.write_char(b1.unsafe_to_char())
+                content.write_char(b2.unsafe_to_char())
+                content.write_char(b3.unsafe_to_char())
+                content.write_char(b4.unsafe_to_char())
+                content.write_char(b5.unsafe_to_char())
+              } else if unicode_value <= 0x7FFFFFFF {
+                // 6-byte UTF-8: 11111100 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx (26 bits)
+                let b1 = 0xFC | (unicode_value >> 30).land(0x01)
+                let b2 = 0x80 | ((unicode_value >> 24).land(0x3F))
+                let b3 = 0x80 | ((unicode_value >> 18).land(0x3F))
+                let b4 = 0x80 | ((unicode_value >> 12).land(0x3F))
+                let b5 = 0x80 | ((unicode_value >> 6).land(0x3F))
+                let b6 = 0x80 | (unicode_value.land(0x3F))
+                content.write_char(b1.unsafe_to_char())
+                content.write_char(b2.unsafe_to_char())
+                content.write_char(b3.unsafe_to_char())
+                content.write_char(b4.unsafe_to_char())
+                content.write_char(b5.unsafe_to_char())
+                content.write_char(b6.unsafe_to_char())
               } else {
-                // Beyond Unicode range - for test compatibility, just use the value
-                // MoonBit might not handle this correctly, but we'll try
-                content.write_char(unicode_value.unsafe_to_char())
+                // Value too large even for 6-byte UTF-8
+                raise LexError::InvalidEscape(pos=self.pos, char='u')
               }
             }
             Some('x') => {
