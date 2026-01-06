@@ -2396,6 +2396,126 @@ fn call_native_function(
       // Return the compiled function
       [func]
     }
+    "_G__index" => {
+      // __index metamethod for _G table
+      // _G[key] should return global variable with that name
+      if args.length() < 2 {
+        raise VMError::InvalidOperation(message="_G__index requires 2 arguments")
+      }
+      let key = match args[1] {
+        @value.TValue::String(s) => s
+        _ => return [@value.TValue::nil()]
+      }
+      // Get global variable
+      let value = state.get_global(key) catch {
+        _ => @value.TValue::nil()
+      }
+      [value]
+    }
+    "_G__newindex" => {
+      // __newindex metamethod for _G table
+      // _G[key] = value should set global variable
+      if args.length() < 3 {
+        raise VMError::InvalidOperation(message="_G__newindex requires 3 arguments")
+      }
+      let key = match args[1] {
+        @value.TValue::String(s) => s
+        _ => return []
+      }
+      let value = args[2]
+      // Set global variable
+      state.set_global(key, value)
+      []
+    }
+    "require" => {
+      // require(modname)
+      // Load a module if not already loaded, return the module value
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="require requires a module name")
+      }
+
+      let modname = match args[0] {
+        @value.TValue::String(s) => s
+        _ => raise VMError::InvalidOperation(message="require: module name must be a string")
+      }
+
+      // Get package.loaded table
+      let package_val = state.get_global("package") catch {
+        _ => raise VMError::InvalidOperation(message="require: package table not found")
+      }
+      let loaded_table = match package_val {
+        @value.TValue::Table(pkg_tbl) => {
+          match pkg_tbl.get_string("loaded") {
+            @value.TValue::Table(tbl) => tbl
+            _ => raise VMError::InvalidOperation(message="require: package.loaded is not a table")
+          }
+        }
+        _ => raise VMError::InvalidOperation(message="require: package is not a table")
+      }
+
+      // Check if module is already loaded
+      let existing = loaded_table.get_string(modname)
+      if !existing.is_nil() {
+        return [existing]
+      }
+
+      // For standard libraries, they should already be in package.loaded
+      // If we get here and it's a standard library name, return error
+      // For now, we only support standard libraries that are pre-loaded
+      raise VMError::RuntimeError(
+        message="require: module '\{modname}' not found (only standard libraries supported)",
+      )
+    }
+    "package.searchpath" => {
+      // package.searchpath(name, path, [sep], [rep])
+      // Searches for a file in the given path
+      // Returns nil + error message listing all attempted paths
+      if args.length() < 2 {
+        raise VMError::InvalidOperation(
+          message="package.searchpath requires at least 2 arguments",
+        )
+      }
+
+      let name = match args[0] {
+        @value.TValue::String(s) => s
+        _ =>
+          raise VMError::InvalidOperation(
+            message="package.searchpath: name must be a string",
+          )
+      }
+
+      let path = match args[1] {
+        @value.TValue::String(s) => s
+        _ =>
+          raise VMError::InvalidOperation(
+            message="package.searchpath: path must be a string",
+          )
+      }
+
+      // For simplicity, we don't actually search files - just return error
+      // Build error message with attempted paths
+      let templates = path.split(";")
+      let error_lines : Array[String] = []
+      for template in templates {
+        // Replace ? with module name
+        let mut filepath = ""
+        for i = 0; i < template.length(); i = i + 1 {
+          if template[i] == '?' {
+            filepath = filepath + name
+          } else {
+            filepath = filepath + template[i].to_string()
+          }
+        }
+        error_lines.push("\tno file '\{filepath}'")
+      }
+      let joined_lines = error_lines.join("\n")
+      let error_msg = "module '\{name}' not found:\n" + joined_lines
+
+      [
+        @value.TValue::nil(),
+        @value.TValue::string(error_msg),
+      ]
+    }
     _ => {
       // Ignore set_global for now - it's used during initialization
       ignore(state)

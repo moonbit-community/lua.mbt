@@ -830,4 +830,64 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   string_table.set_string("reverse", @value.TValue::native_function("string.reverse"))
 
   state.set_global("string", @value.TValue::table(string_table))
+
+  // Create package library table for require() system
+  let package_table = @value.Table::new()
+
+  // package.loaded - table of already loaded modules
+  let loaded_table = @value.Table::new()
+  // Pre-populate with standard libraries
+  loaded_table.set_string("string", @value.TValue::table(string_table))
+  loaded_table.set_string("table", @value.TValue::table(table_table))
+  loaded_table.set_string("math", @value.TValue::table(math_table))
+  // Create stub tables for other standard libraries
+  let io_table = @value.Table::new()
+  loaded_table.set_string("io", @value.TValue::table(io_table))
+  let os_table = @value.Table::new()
+  loaded_table.set_string("os", @value.TValue::table(os_table))
+  let coroutine_table = @value.Table::new()
+  loaded_table.set_string("coroutine", @value.TValue::table(coroutine_table))
+  let debug_table = @value.Table::new()
+  loaded_table.set_string("debug", @value.TValue::table(debug_table))
+
+  package_table.set_string("loaded", @value.TValue::table(loaded_table))
+
+  // package.preload - table of preload functions
+  let preload_table = @value.Table::new()
+  package_table.set_string("preload", @value.TValue::table(preload_table))
+
+  // package.path - search path for Lua modules
+  package_table.set_string("path", @value.TValue::string("./?.lua;./?/init.lua"))
+
+  // package.cpath - search path for C modules (not supported, but provide it)
+  package_table.set_string("cpath", @value.TValue::string(""))
+
+  // package.config - directory separator and other config
+  // Format: dir_sep \n template_sep \n substitution_point \n executable_dir \n ignore_mark
+  package_table.set_string("config", @value.TValue::string("/\n;\n?\n!\n-"))
+
+  // package.searchpath - search for a module in path
+  package_table.set_string(
+    "searchpath",
+    @value.TValue::native_function("package.searchpath"),
+  )
+
+  state.set_global("package", @value.TValue::table(package_table))
+
+  // Register require() function
+  state.set_global("require", @value.TValue::native_function("require"))
+
+  // Register stub tables as globals
+  state.set_global("io", @value.TValue::table(io_table))
+  state.set_global("os", @value.TValue::table(os_table))
+  state.set_global("coroutine", @value.TValue::table(coroutine_table))
+  state.set_global("debug", @value.TValue::table(debug_table))
+
+  // Create _G (global environment table) with metatable for live proxy
+  let g_table = @value.Table::new()
+  let g_metatable = @value.Table::new()
+  g_metatable.set_string("__index", @value.TValue::native_function("_G__index"))
+  g_metatable.set_string("__newindex", @value.TValue::native_function("_G__newindex"))
+  g_table.set_metatable(@value.TValue::table(g_metatable))
+  state.set_global("_G", @value.TValue::table(g_table))
 }

@@ -20,8 +20,9 @@ pub fn Lexer::new(source : String) -> Lexer {
 
 ///|
 /// Check if character is a whitespace
+/// Lua treats all control characters as whitespace outside strings
 fn is_whitespace(c : Char) -> Bool {
-  c == ' ' || c == '\t' || c == '\n' || c == '\r'
+  c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u000B' || c == '\u000C'
 }
 
 ///|
