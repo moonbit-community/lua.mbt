@@ -2,7 +2,7 @@
 // Supports standard Lua command-line options
 
 ///| Main entry point for Lua CLI
-async fn main {
+fn main {
   // Create command line parser
   let parser = @clap.Parser::new(
     prog="lua",
@@ -61,7 +61,7 @@ async fn main {
 }
 
 ///| Handle parsed command line arguments
-async fn handle_command(value : @clap.SimpleValue) -> Unit {
+fn handle_command(value : @clap.SimpleValue) -> Unit {
   // Show version
   let version_flag = value.flags.get("version").unwrap_or(false)
   if version_flag {
@@ -176,7 +176,7 @@ async fn handle_command(value : @clap.SimpleValue) -> Unit {
 }
 
 ///| Start interactive REPL
-async fn repl(no_env : Bool, warnings_as_errors : Bool) -> Unit {
+fn repl(no_env : Bool, warnings_as_errors : Bool) -> Unit {
   println("Lua 5.4.0  Copyright (C) 1994-2020 Lua.org, PUC-Rio")
   println("MoonBit port - Interactive mode")
   println("Type 'exit' or Ctrl+D to quit")
