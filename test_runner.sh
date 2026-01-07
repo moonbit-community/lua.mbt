@@ -1,17 +1,11 @@
 #!/bin/bash
 # Test runner for official Lua test suite
 
-# Build the project first
-echo "Building project..."
-moon build > /dev/null 2>&1
+# Prefer JS backend runner (preferred-target=js). Build optional for type-check.
+echo "Checking project..."
+moon check > /dev/null 2>&1
 if [ $? -ne 0 ]; then
-  echo "Build failed!"
-  exit 1
-fi
-
-LUA_BIN="target/native/release/build/cmd/cmd.exe"
-if [ ! -f "$LUA_BIN" ]; then
-  echo "Binary not found: $LUA_BIN"
+  echo "Type check failed!"
   exit 1
 fi
 
@@ -28,7 +22,8 @@ for test in refs/lua/testes/*.lua; do
   name=$(basename "$test")
   printf "%-30s" "$name"
 
-  output=$(timeout 2 "$LUA_BIN" "$test" 2>&1)
+  # Run via moon runner (JS target). Increase timeout slightly for Node startup.
+  output=$(timeout 4 moon run cmd -- "$test" 2>&1)
   status=$?
 
   if echo "$output" | grep -q "SyntaxError"; then

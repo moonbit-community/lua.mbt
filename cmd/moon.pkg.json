@@ -4,7 +4,7 @@
     "TheWaWaR/clap",
     "moonbitlang/x/sys",
     "moonbitlang/async",
-    "moonbitlang/async/fs",
+    "moonbitlang/x/fs",
     "moonbitlang/async/io",
     "lua/api"
   ]

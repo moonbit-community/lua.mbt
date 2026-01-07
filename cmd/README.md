@@ -14,6 +14,11 @@ moon build
 moon run cmd -- [OPTIONS] [SCRIPT] [ARGS...]
 ```
 
+Backend/I/O
+- Preferred target is `js` (see `moon.mod.json`).
+- CLI file I/O uses synchronous Node bindings via `moonbitlang/x/fs` (js.mbt), e.g. `@fs.read_file_to_string(path)`.
+- Reference: https://github.com/mizchi/js.mbt
+
 ## Command-line Options
 
 ### Flags

@@ -114,6 +114,18 @@ Each package follows the spec-driven development pattern:
 ✅ 29 source files created
 ⏳ Implementation pending
 
+## Backend Target And I/O
+
+- Preferred target: `js` (see `moon.mod.json:4`)
+- I/O: Uses synchronous Node.js bindings provided via js.mbt-backed module `moonbitlang/x/fs`.
+  - Rationale: Simple, deterministic file access for CLI and tests under Node without event loop setup.
+  - Example: CLI reads scripts with `@fs.read_file_to_string(path)`.
+  - Upstream reference: https://github.com/mizchi/js.mbt
+
+Notes:
+- `moon run cmd -- ...` will execute the JS backend by default.
+- Legacy native-specific scripts may need adjustment; prefer `moon run cmd` instead of invoking a native binary directly.
+
 ## Key Design Decisions
 
 ### MoonBit-Specific Adaptations
