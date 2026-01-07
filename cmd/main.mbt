@@ -141,9 +141,9 @@ async fn handle_command(value : @clap.SimpleValue) -> Unit {
   match script_file {
     Some(file) => {
       // Read the script file using synchronous Node.js bindings (js.mbt)
-      // Switch from async fs to x/fs to run fast under JS target
+      // Switch to mizchi/js Node fs for deterministic sync I/O under JS target
       let content = try {
-        @fs.read_file_to_string(file)
+        @fs.read_file_as_string(file)
       } catch {
         err => {
           println("Error reading file '\{file}': \{err}")

@@ -4,8 +4,7 @@
     "TheWaWaR/clap",
     "moonbitlang/x/sys",
     "moonbitlang/async",
-    "moonbitlang/x/fs",
-    "moonbitlang/async/io",
+    "mizchi/js/node/fs",
     "lua/api"
   ]
 }

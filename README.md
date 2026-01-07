@@ -117,9 +117,9 @@ Each package follows the spec-driven development pattern:
 ## Backend Target And I/O
 
 - Preferred target: `js` (see `moon.mod.json:4`)
-- I/O: Uses synchronous Node.js bindings provided via js.mbt-backed module `moonbitlang/x/fs`.
+- I/O: Uses synchronous Node.js bindings via mizchi/js (`mizchi/js/node/fs`).
   - Rationale: Simple, deterministic file access for CLI and tests under Node without event loop setup.
-  - Example: CLI reads scripts with `@fs.read_file_to_string(path)`.
+  - Example: CLI reads scripts with `@fs.read_file_as_string(path)`.
   - Upstream reference: https://github.com/mizchi/js.mbt
 
 Notes:
