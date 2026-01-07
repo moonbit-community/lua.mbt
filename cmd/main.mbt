@@ -140,6 +140,28 @@ fn handle_command(value : @clap.SimpleValue) -> Unit {
   // Execute script file
   match script_file {
     Some(file) => {
+      // Prepend script directory to package.path so require can find sibling modules
+      let path = file
+      let mut last_slash = -1
+      for i = 0; i < path.length(); i = i + 1 {
+        if path[i] == '/' {
+          last_slash = i
+        }
+      }
+      let script_dir = if last_slash >= 0 {
+        let mut dir = ""
+        for i = 0; i < last_slash; i = i + 1 {
+          dir = dir + path[i].to_int().unsafe_to_char().to_string()
+        }
+        dir
+      } else { "." }
+
+      // Update package.path inside the Lua state
+      let prep_path_code =
+        "local dir = '" + script_dir + "'\n" +
+        "package.path = dir .. '/?.lua;' .. dir .. '/?/init.lua;' .. package.path\n"
+      try { lua.load_string(prep_path_code) |> ignore } catch { _ => () }
+
       // Read the script file using synchronous Node.js bindings (js.mbt)
       // Switch to mizchi/js Node fs for deterministic sync I/O under JS target
       let content = try {

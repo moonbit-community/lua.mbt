@@ -1,3 +1,10 @@
 {
-  "import": ["lua/value", "lua/opcodes", "lua/state", "lua/stdlib", "lua/proto"]
+  "import": [
+    "lua/value",
+    "lua/opcodes",
+    "lua/state",
+    "lua/stdlib",
+    "lua/proto",
+    "mizchi/js/node/fs"
+  ]
 }

@@ -2795,106 +2795,57 @@ fn call_native_function(
         return [existing]
       }
 
-      // Build error message listing all attempted locations
-      let error_parts : Array[String] = []
-      error_parts.push("module '\{modname}' not found:")
-
-      // Check package.preload
-      let preload_table = match package_table.get_string("preload") {
-        @value.TValue::Table(tbl) => tbl
-        _ => @value.Table::new()
-      }
-      let preload_func = preload_table.get_string(modname)
-      if preload_func.is_nil() {
-        error_parts.push("\tno field package.preload['\{modname}']")
-      }
-
-      // Search using package.path (Lua files)
+      // Try to resolve file path using package.searchpath
       let path_str = match package_table.get_string("path") {
         @value.TValue::String(s) => s
-        _ => {
-          // package.path is not a string - raise error
-          raise VMError::RuntimeError(
-            message="error loading module (package.path is not a string)"
-          )
-        }
+        _ => "./?.lua;./?/init.lua"
       }
-      if path_str.length() > 0 {
-        // Use package.searchpath to get formatted error message
-        let searchpath_result = call_native_function(
-          state,
-          "package.searchpath",
-          [@value.TValue::string(modname), @value.TValue::string(path_str)]
-        )
-        // searchpath returns [nil, error_message] when not found
-        if searchpath_result.length() >= 2 {
-          match searchpath_result[1] {
-            @value.TValue::String(err_msg) => {
-              // Extract just the file paths from searchpath error
-              // Skip first line by finding first newline
-              let mut start = 0
-              while start < err_msg.length() && err_msg[start] != '\n' {
-                start = start + 1
+      let search_res = call_native_function(
+        state,
+        "package.searchpath",
+        [@value.TValue::string(modname), @value.TValue::string(path_str)]
+      )
+
+      // If found, load from file; otherwise build error from returned message
+      if search_res.length() >= 1 {
+        match search_res[0] {
+          @value.TValue::String(file_path) => {
+            // Read file and execute it
+            let src = try {
+              @fs.read_file_as_string(file_path)
+            } catch {
+              _ => raise VMError::RuntimeError(message="error reading module file")
+            }
+            // Compile to function
+            let func_val = state.compile_string(src) catch {
+              @state.StateError::RuntimeError(message~) =>
+                raise VMError::RuntimeError(message="error loading module: \{message}")
+              _ => raise VMError::RuntimeError(message="error loading module")
+            }
+            // Execute chunk
+            match func_val {
+              @value.TValue::Function(func) => {
+                let results = call_bytecode_function(state, func, [])
+                // Determine module value
+                let module_val = if results.length() > 0 { results[0] } else { @value.TValue::boolean(true) }
+                loaded_table.set_string(modname, module_val)
+                [module_val]
               }
-              // Skip the newline itself
-              start = start + 1
-              // Add rest of message (all the "\tno file" lines)
-              if start < err_msg.length() {
-                let remaining = try {
-                  err_msg[start:err_msg.length()].to_string()
-                } catch {
-                  _ => ""
-                }
-                error_parts.push(remaining)
+              _ => {
+                loaded_table.set_string(modname, @value.TValue::boolean(true))
+                [@value.TValue::boolean(true)]
               }
             }
-            _ => ()
+          }
+          _ => {
+            // Not found: return error
+            let err_msg = if search_res.length() >= 2 { search_res[1].to_string() } else { "module not found" }
+            raise VMError::RuntimeError(message=err_msg)
           }
         }
+      } else {
+        raise VMError::RuntimeError(message="module not found")
       }
-
-      // Search using package.cpath (C files)
-      let cpath_str = match package_table.get_string("cpath") {
-        @value.TValue::String(s) => s
-        _ => ""
-      }
-      if cpath_str.length() > 0 {
-        // Use package.searchpath to get formatted error message
-        let searchpath_result = call_native_function(
-          state,
-          "package.searchpath",
-          [@value.TValue::string(modname), @value.TValue::string(cpath_str)]
-        )
-        // searchpath returns [nil, error_message] when not found
-        if searchpath_result.length() >= 2 {
-          match searchpath_result[1] {
-            @value.TValue::String(err_msg) => {
-              // Extract just the file paths from searchpath error
-              // Skip first line by finding first newline
-              let mut start = 0
-              while start < err_msg.length() && err_msg[start] != '\n' {
-                start = start + 1
-              }
-              // Skip the newline itself
-              start = start + 1
-              // Add rest of message (all the "\tno file" lines)
-              if start < err_msg.length() {
-                let remaining = try {
-                  err_msg[start:err_msg.length()].to_string()
-                } catch {
-                  _ => ""
-                }
-                error_parts.push(remaining)
-              }
-            }
-            _ => ()
-          }
-        }
-      }
-
-      // Join all error parts and raise error
-      let full_error = error_parts.join("\n")
-      raise VMError::RuntimeError(message=full_error)
     }
     "package.searchpath" => {
       // package.searchpath(name, path, [sep], [rep])
@@ -2922,8 +2873,7 @@ fn call_native_function(
           )
       }
 
-      // For simplicity, we don't actually search files - just return error
-      // Build error message with attempted paths
+      // Try to locate an existing file using Node's fs.existsSync
       // Manual split by ";"
       let templates : Array[String] = []
       let mut current = ""
@@ -2940,6 +2890,7 @@ fn call_native_function(
       }
 
       let error_lines : Array[String] = []
+      let mut found_path : String? = None
       for template in templates {
         // Replace ? with module name
         let mut filepath = ""
@@ -2950,15 +2901,21 @@ fn call_native_function(
             filepath = filepath + template[i].to_int().unsafe_to_char().to_string()
           }
         }
-        error_lines.push("\tno file '\{filepath}'")
+        if @fs.existsSync(filepath) {
+          found_path = Some(filepath)
+          break
+        } else {
+          error_lines.push("\tno file '\{filepath}'")
+        }
       }
-      let joined_lines = error_lines.join("\n")
-      let error_msg = "module '\{name}' not found:\n" + joined_lines
-
-      [
-        @value.TValue::nil(),
-        @value.TValue::string(error_msg),
-      ]
+      match found_path {
+        Some(path) => [@value.TValue::string(path)]
+        None => {
+          let joined_lines = error_lines.join("\n")
+          let error_msg = "module '\{name}' not found:\n" + joined_lines
+          [@value.TValue::nil(), @value.TValue::string(error_msg)]
+        }
+      }
     }
     _ => {
       // Ignore set_global for now - it's used during initialization
