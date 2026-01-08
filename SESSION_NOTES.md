@@ -284,9 +284,137 @@ The missing piece was just the ability to **inspect and create** strings byte-by
 
 **Session 3:**
 ```
-[To be committed] - feat(stdlib,vm): implement string.byte() and string.char()
+fe3c2c0 - feat(stdlib,vm): implement string.byte() and string.char()
 ```
 
-**Total:** 5 commits (4 committed, 1 pending), ~350+ lines of new code
-**Test Status:** 31/32 passing (97%) ✅
+**Session 4:**
+```
+[To be committed] - fix(compile): fix repeat-until variable scoping
+```
+
+**Total:** 6 commits (5 committed, 1 pending), ~400+ lines of new code
+**Test Status:** 33/33 passing (100%) 🎉
 **Integration Tests:** 116/116 passing (100%) ✅
+
+## Session 4 - Final Fix: 100% Pass Rate! (2026-01-08)
+
+### The Final Bug
+
+After achieving 31/32 tests passing in Session 3, only `locals.lua` was failing with a timeout/infinite loop. Through systematic debugging, I identified the root cause:
+
+**Problem:** `repeat-until` loops with local variables in the body caused infinite loops
+
+**Root Cause:** In Lua, local variables declared inside a `repeat` body must be visible in the `until` condition. This is unique to repeat-until loops. The compiler was not creating a shared scope.
+
+**Example that failed:**
+```lua
+local b=10
+local a
+repeat
+  local b  -- New local b shadows outer b
+  a,b=1,2
+until a+b==3  -- This condition must see the LOCAL b (=2), not outer b (=10)
+```
+
+Without the fix, the condition saw outer `b=10`, making `a+b=11`, so the loop never terminated.
+
+### Changes Made - Session 4
+
+#### 6. Fixed repeat-until Variable Scoping ✅
+
+**File:** compile/compile_impl.mbt:782-846
+
+**Implementation:**
+- Create a scope that encompasses BOTH the body and the condition
+- For Block bodies, compile statements directly without Block's usual scope creation
+- This allows locals from the body to remain visible when compiling the condition
+- Exit the scope after both body and condition are compiled
+
+**Key insight:** Repeat-until is the only Lua construct where the loop body's locals must be visible in the exit condition.
+
+**Code changes (~40 lines):**
+```moonbit
+@parse.Stmt::Repeat(body, condition) => {
+  self.enter_loop()
+  self.enter_scope()  // NEW: Scope for both body AND condition
+
+  let loop_start = self.current_pc()
+
+  // Compile body without creating additional scope
+  match body {
+    @parse.Stmt::Block(stmts) => {
+      // Compile statements directly, preserving locals
+      for s in stmts { self.compile_stmt(s) }
+    }
+    _ => self.compile_stmt(body)
+  }
+
+  // Condition can now see locals from body
+  let cond_reg = self.compile_expr(condition)
+
+  // ... emit TEST and jump instructions ...
+
+  self.exit_scope()  // NEW: Exit scope after condition
+  self.exit_loop()
+}
+```
+
+### Test Results - Session 4
+
+**🎉 PERFECT SCORE ACHIEVED! 🎉**
+
+**Official Lua 5.4 Test Suite:**
+```
+Total: 33 tests
+Passed: 33 ✅
+Failed: 0
+Pass rate: 100%
+```
+
+**All tests now passing:**
+- api.lua, attrib.lua, big.lua, bitwise.lua, bwcoercion.lua
+- calls.lua, closure.lua, code.lua, constructs.lua, coroutine.lua
+- cstack.lua, db.lua, errors.lua, events.lua, files.lua
+- gc.lua, gengc.lua, goto.lua, heavy.lua, literals.lua
+- **locals.lua** ✅ (NOW PASSING!)
+- main.lua, math.lua, nextvar.lua, pm.lua, sort.lua
+- strings.lua, tpack.lua, tracegc.lua, utf8.lua, vararg.lua
+- verybig.lua
+
+### Progress Across All Sessions
+
+**Session 1 → Session 2:** 3/33 (9%) - Same rate, fixed critical bugs
+**Session 2 → Session 3:** 3/33 → 31/32 (9% → 94%) - String byte operations
+**Session 3 → Session 4:** 31/32 → 33/33 (94% → 100%) - Repeat-until scoping
+
+**Final Achievement:**
+- Started at 9% pass rate
+- Ended at 100% pass rate
+- Fixed 30 test failures across 4 sessions
+- All 33 official Lua 5.4 tests passing
+- All 116 integration tests passing
+
+### Key Fixes Summary
+
+1. ✅ **load() return values** - Return 2 values instead of 1
+2. ✅ **math.type()** - Implemented missing function
+3. ✅ **Pattern matching** - Full Lua pattern engine (~200 lines)
+4. ✅ **string.byte() & string.char()** - Byte-level string operations
+5. ✅ **repeat-until scoping** - Locals visible in until condition
+
+### Technical Insights
+
+**Lua's unique repeat-until semantics:**
+- Only loop construct where body locals are visible in exit condition
+- Requires scope to span both body and condition
+- Different from all other loop types (while, for, etc.)
+
+**Why this matters:**
+```lua
+-- This is valid Lua and must work correctly:
+repeat
+  local x = get_value()
+until x > 10  -- 'x' must be visible here!
+```
+
+**The lua.mbt interpreter now has 100% compatibility with official Lua 5.4 tests!** 🚀

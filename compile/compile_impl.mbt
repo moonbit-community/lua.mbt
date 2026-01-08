@@ -783,13 +783,45 @@ pub fn Compiler::compile_stmt(
       self.enter_loop()
 
       // Repeat-until loop: repeat body until condition
+      // IMPORTANT: In Lua, local variables declared in the repeat body
+      // are visible in the until condition. This requires special scope handling.
+      // Create a scope that encompasses both body and condition
+      self.enter_scope()
+
       // Save loop start position
       let loop_start = self.current_pc()
 
-      // Compile body first (do-while style)
-      self.compile_stmt(body)
+      // Compile body statements
+      // If body is a Block, compile its statements directly WITHOUT entering a new scope
+      // (since we already entered one above that includes the condition)
+      match body {
+        @parse.Stmt::Block(stmts) => {
+          // Compile block statements directly, without Block's usual scope management
+          for s in stmts {
+            let baseline = self.next_register
+            self.compile_stmt(s)
+            // Restore baseline after statement (but keep any new locals)
+            let mut max_local_reg = -1
+            for local in self.locals {
+              if local.scope_depth == self.scope_depth && local.register > max_local_reg {
+                max_local_reg = local.register
+              }
+            }
+            let target_reg = if max_local_reg >= baseline {
+              max_local_reg + 1
+            } else {
+              baseline
+            }
+            self.next_register = target_reg
+          }
+        }
+        _ => {
+          // For non-block statements, compile normally
+          self.compile_stmt(body)
+        }
+      }
 
-      // Compile condition
+      // Compile condition (can now see locals from body)
       let cond_reg = self.compile_expr(condition)
 
       // TEST instruction: if (not R[A]) != k then PC++
@@ -807,6 +839,9 @@ pub fn Compiler::compile_stmt(
 
       // Jump back to loop start (executed when condition is false)
       self.patch_jump_to(self.emit_jump(), loop_start)
+
+      // Exit the scope (removes locals from body)
+      self.exit_scope()
       self.exit_loop()
     }
     @parse.Stmt::For(var_name, start_expr, end_expr, step_expr, body) => {
