@@ -4,7 +4,8 @@ _build/
 .mooncakes/
 
 # Claude Code
-.claude/
+.claude/*
+!.claude/settings.json
 
 # Reference files (Lua C source)
 refs/

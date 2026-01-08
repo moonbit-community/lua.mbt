@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "moonbit-lang@moonbit-code-plugins": true,
+    "beads@beads-marketplace": true
+  }
+}
