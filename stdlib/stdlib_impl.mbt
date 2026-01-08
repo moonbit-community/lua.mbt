@@ -379,8 +379,170 @@ pub fn string_reverse(s : @value.TValue) -> String raise StdlibError {
 }
 
 ///|
-/// string.find(s, pattern, init) - Find substring
-/// Simplified version: only supports plain string search
+/// Helper: Check if character (UInt16 from string indexing) matches a character class
+fn matches_class(ch : UInt16, class : UInt16) -> Bool {
+  match class.to_int().unsafe_to_char() {
+    'a' => {
+      let c = ch.to_int().unsafe_to_char()
+      (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')  // letters
+    }
+    'c' => ch.to_int() < 32 || ch.to_int() == 127  // control chars
+    'd' => {
+      let c = ch.to_int().unsafe_to_char()
+      c >= '0' && c <= '9'  // digits
+    }
+    'l' => {
+      let c = ch.to_int().unsafe_to_char()
+      c >= 'a' && c <= 'z'  // lowercase
+    }
+    'p' => {
+      // punctuation
+      let c = ch.to_int()
+      (c >= 33 && c <= 47) || (c >= 58 && c <= 64) || (c >= 91 && c <= 96) || (c >= 123 && c <= 126)
+    }
+    's' => {
+      let c = ch.to_int().unsafe_to_char()
+      c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\x0b' || c == '\x0c'  // space
+    }
+    'u' => {
+      let c = ch.to_int().unsafe_to_char()
+      c >= 'A' && c <= 'Z'  // uppercase
+    }
+    'w' => {
+      let c = ch.to_int().unsafe_to_char()
+      (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'  // alphanumeric
+    }
+    'x' => {
+      let c = ch.to_int().unsafe_to_char()
+      (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')  // hex
+    }
+    'z' => ch.to_int() == 0  // null
+    _ => false
+  }
+}
+
+///|
+/// Helper: Match pattern against string starting at given positions
+/// Returns (matched_length, end_pos) or (-1, -1) if no match
+fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (Int, Int) {
+  let str_len = str.length()
+  let pat_len = pat.length()
+
+  // End of pattern - success
+  if pat_pos >= pat_len {
+    return (0, str_pos)
+  }
+
+  // Check for quantifiers (* or +)
+  let has_quantifier = pat_pos + 1 < pat_len && (pat[pat_pos + 1] == '*' || pat[pat_pos + 1] == '+')
+
+  if has_quantifier {
+    let quantifier = pat[pat_pos + 1]
+    let pat_char = pat[pat_pos]
+    let is_class = pat_char == '%' && pat_pos + 2 <= pat_len
+
+    if quantifier == '*' {
+      // * means 0 or more - try matching rest of pattern first (greedy)
+      let (_, end1) = match_pattern(str, str_pos, pat, pat_pos + 2)
+      if end1 >= 0 {
+        return (str_pos - str_pos, end1)  // 0 matches
+      }
+
+      // Try matching 1 or more times
+      let mut pos = str_pos
+      while pos < str_len {
+        let ch = str[pos]
+        let matches = if is_class {
+          matches_class(ch, pat[pat_pos + 1])
+        } else if pat_char == '.' {
+          true
+        } else {
+          ch == pat_char
+        }
+
+        if not(matches) { break }
+        pos = pos + 1
+
+        // Try matching rest of pattern after consuming this char
+        let (_, end2) = match_pattern(str, pos, pat, pat_pos + 2)
+        if end2 >= 0 {
+          return (pos - str_pos, end2)
+        }
+      }
+      return (-1, -1)
+    } else {
+      // + means 1 or more
+      let mut pos = str_pos
+      let mut matched = 0
+
+      while pos < str_len {
+        let ch = str[pos]
+        let matches = if is_class {
+          matches_class(ch, pat[pat_pos + 1])
+        } else if pat_char == '.' {
+          true
+        } else {
+          ch == pat_char
+        }
+
+        if not(matches) { break }
+        pos = pos + 1
+        matched = matched + 1
+
+        // After at least 1 match, try matching rest of pattern
+        if matched >= 1 {
+          let (_, end2) = match_pattern(str, pos, pat, pat_pos + 2)
+          if end2 >= 0 {
+            return (pos - str_pos, end2)
+          }
+        }
+      }
+
+      if matched >= 1 {
+        // Consumed chars but couldn't match rest
+        return (-1, -1)
+      } else {
+        // Didn't match even once (+ requires at least 1)
+        return (-1, -1)
+      }
+    }
+  }
+
+  // No quantifier - match single character
+  if str_pos >= str_len {
+    return (-1, -1)  // End of string but pattern remains
+  }
+
+  let pat_char = pat[pat_pos]
+  let ch = str[str_pos]
+
+  let matches = if pat_char == '%' && pat_pos + 1 < pat_len {
+    // Character class
+    matches_class(ch, pat[pat_pos + 1])
+  } else if pat_char == '.' {
+    // Wildcard - matches any character
+    true
+  } else {
+    // Literal character
+    ch == pat_char
+  }
+
+  if not(matches) {
+    return (-1, -1)
+  }
+
+  // Character matched, continue with rest of pattern
+  let advance = if pat_char == '%' { 2 } else { 1 }
+  let (rest_len, end_pos) = match_pattern(str, str_pos + 1, pat, pat_pos + advance)
+  if rest_len < 0 {
+    return (-1, -1)
+  }
+
+  (1 + rest_len, end_pos)
+}
+
+///|
+/// string.find(s, pattern, init) - Find substring or pattern
 pub fn string_find(
   s : @value.TValue,
   pattern : @value.TValue,
@@ -393,24 +555,57 @@ pub fn string_find(
         None => 0
       }
 
-      // Simple substring search (no regex patterns)
       let str_len = str.length()
       let pat_len = pat.length()
 
-      for i = start_pos; i <= str_len - pat_len; i = i + 1 {
-        let mut found = true
-        for j = 0; j < pat_len; j = j + 1 {
-          if str[i + j] != pat[j] {
-            found = false
-            break
+      // Check for anchors
+      let anchor_start = pat_len > 0 && pat[0] == '^'
+      let anchor_end = pat_len > 0 && pat[pat_len - 1] == '$'
+
+      let search_pat = if anchor_start {
+        pat.substring(start=1)
+      } else {
+        pat
+      }
+      let search_pat_final = if anchor_end && search_pat.length() > 0 {
+        search_pat.substring(end=search_pat.length() - 1)
+      } else {
+        search_pat
+      }
+
+      // If anchored at start, only try position start_pos
+      if anchor_start {
+        let (matched_len, end_pos) = match_pattern(str, start_pos, search_pat_final, 0)
+        if matched_len >= 0 {
+          // If anchored at end, check that we matched to the end
+          if anchor_end {
+            if end_pos == str_len {
+              return (start_pos + 1, end_pos)  // Lua 1-based
+            } else {
+              return (0, 0)  // Didn't match to end
+            }
           }
+          return (start_pos + 1, end_pos)  // Lua 1-based
         }
-        if found {
-          return (i + 1, i + pat_len)  // Lua 1-based indices
+        return (0, 0)
+      }
+
+      // Try matching at each position
+      for i = start_pos; i < str_len; i = i + 1 {
+        let (matched_len, end_pos) = match_pattern(str, i, search_pat_final, 0)
+        if matched_len >= 0 {
+          // If anchored at end, check that we matched to the end
+          if anchor_end {
+            if end_pos == str_len {
+              return (i + 1, end_pos)  // Lua 1-based
+            }
+          } else {
+            return (i + 1, end_pos)  // Lua 1-based
+          }
         }
       }
 
-      // Not found - return (0, 0) to indicate failure
+      // Not found
       (0, 0)
     }
     _ =>
