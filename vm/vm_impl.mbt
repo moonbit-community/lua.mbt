@@ -2241,6 +2241,72 @@ fn call_native_function(
       }
       [@value.TValue::string(result)]
     }
+    "string.byte" => {
+      // string.byte(s [, i [, j]]) - Returns internal numeric codes of characters
+      if args.length() == 0 {
+        raise VMError::InvalidOperation(message="string.byte requires a string argument")
+      }
+      let s = match args[0] {
+        @value.TValue::String(str) => str
+        _ => raise VMError::InvalidOperation(message="string.byte requires a string")
+      }
+
+      // Get i (default 1)
+      let i = if args.length() >= 2 {
+        try {
+          args[1].to_integer().to_int()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="string.byte index must be a number")
+        }
+      } else {
+        1
+      }
+
+      // Get j (default i)
+      let j = if args.length() >= 3 {
+        try {
+          args[2].to_integer().to_int()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="string.byte index must be a number")
+        }
+      } else {
+        i
+      }
+
+      // Lua uses 1-based indexing, convert to 0-based
+      let start = (if i < 0 { s.length() + i + 1 } else { i }) - 1
+      let end = (if j < 0 { s.length() + j + 1 } else { j }) - 1
+
+      // Check bounds
+      if start < 0 || start >= s.length() || end < start {
+        []  // Return empty for out of bounds
+      } else {
+        let result : Array[@value.TValue] = []
+        let actual_end = if end >= s.length() { s.length() - 1 } else { end }
+        for idx = start; idx <= actual_end; idx = idx + 1 {
+          let byte_val = s[idx].to_int()
+          result.push(@value.TValue::number(byte_val.to_double()))
+        }
+        result
+      }
+    }
+    "string.char" => {
+      // string.char(...) - Returns string from character codes
+      let result_chars : Array[Char] = []
+      for i = 0; i < args.length(); i = i + 1 {
+        let code = try {
+          args[i].to_integer().to_int()
+        } catch {
+          _ => raise VMError::InvalidOperation(message="string.char requires integer arguments")
+        }
+        if code < 0 || code > 255 {
+          raise VMError::InvalidOperation(message="string.char value out of range")
+        }
+        result_chars.push(code.unsafe_to_char())
+      }
+      let result_str = String::from_array(result_chars)
+      [@value.TValue::string(result_str)]
+    }
     "pcall" => {
       // pcall(f, ...) - Protected call
       // Returns (true, results...) on success or (false, error_message) on error

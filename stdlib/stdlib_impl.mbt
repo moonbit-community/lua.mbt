@@ -1036,6 +1036,8 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   string_table.set_string("format", @value.TValue::native_function("string.format"))
   string_table.set_string("rep", @value.TValue::native_function("string.rep"))
   string_table.set_string("reverse", @value.TValue::native_function("string.reverse"))
+  string_table.set_string("byte", @value.TValue::native_function("string.byte"))
+  string_table.set_string("char", @value.TValue::native_function("string.char"))
 
   state.set_global("string", @value.TValue::table(string_table))
 
