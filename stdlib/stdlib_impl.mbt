@@ -815,6 +815,7 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   math_table.set_string("log", @value.TValue::native_function("math.log"))
   math_table.set_string("deg", @value.TValue::native_function("math.deg"))
   math_table.set_string("rad", @value.TValue::native_function("math.rad"))
+  math_table.set_string("type", @value.TValue::native_function("math.type"))
 
   state.set_global("math", @value.TValue::table(math_table))
 

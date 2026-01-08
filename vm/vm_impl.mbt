@@ -1878,6 +1878,18 @@ fn call_native_function(
       let radians = arg * (3.14159265358979323846 / 180.0)
       [@value.TValue::number(radians)]
     }
+    "math.type" => {
+      // math.type(x) - Returns "integer", "float", or nil
+      if args.length() == 0 {
+        [@value.TValue::nil()]
+      } else {
+        match args[0] {
+          @value.TValue::Integer(_) => [@value.TValue::string("integer")]
+          @value.TValue::Number(_) => [@value.TValue::string("float")]
+          _ => [@value.TValue::nil()]
+        }
+      }
+    }
     // Table library functions
     "table.insert" => {
       // table.insert(table, [pos,] value)
