@@ -1,6 +1,7 @@
 {
   "enabledPlugins": {
     "moonbit-lang@moonbit-code-plugins": true,
-    "beads@beads-marketplace": true
+    "beads@beads-marketplace": true,
+    "ralph-loop@claude-plugins-official": true
   }
 }
