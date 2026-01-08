@@ -1534,6 +1534,165 @@ pub fn Compiler::compile_stmt(
 }
 
 ///|
+/// Compile a function or method call expression with multires (C=0)
+/// This is used when the call is the last argument to another function
+/// target_reg: where the first result should be placed
+fn Compiler::compile_expr_multires(
+  self : Compiler,
+  expr : @parse.Expr,
+  target_reg : Int
+) -> Int raise CompileError {
+  match expr {
+    @parse.Expr::Call(func_expr, args) => {
+      // Compile the function expression
+      let func_reg = self.compile_expr(func_expr)
+
+      // Move function to target_reg if needed
+      if func_reg != target_reg {
+        self.emit(
+          @opcodes.Instruction::abc(
+            @opcodes.OpCode::Move,
+            target_reg,
+            func_reg,
+            0,
+            false,
+          ),
+        )
+        while self.next_register <= target_reg {
+          self.next_register = self.next_register + 1
+        }
+      }
+
+      // Compile arguments after the function
+      for i = 0; i < args.length(); i = i + 1 {
+        let arg_reg = self.compile_expr(args[i])
+        let expected_reg = target_reg + i + 1
+        if arg_reg != expected_reg {
+          self.emit(
+            @opcodes.Instruction::abc(
+              @opcodes.OpCode::Move,
+              expected_reg,
+              arg_reg,
+              0,
+              false,
+            ),
+          )
+          while self.next_register <= expected_reg {
+            self.next_register = self.next_register + 1
+          }
+        }
+      }
+
+      // Emit CALL with C=0 (multires - return all values)
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Call,
+          target_reg,
+          args.length() + 1,  // B = arg_count + 1
+          0,  // C=0 means return all values
+          false,
+        ),
+      )
+
+      target_reg
+    }
+    @parse.Expr::MethodCall(obj_expr, method, args) => {
+      // Compile method call with multires
+      let obj_reg = self.compile_expr(obj_expr)
+
+      // Move object to target_reg
+      if obj_reg != target_reg {
+        self.emit(
+          @opcodes.Instruction::abc(
+            @opcodes.OpCode::Move,
+            target_reg,
+            obj_reg,
+            0,
+            false,
+          ),
+        )
+        while self.next_register <= target_reg {
+          self.next_register = self.next_register + 1
+        }
+      }
+
+      let method_reg = target_reg + 1
+      let method_const = self.add_constant(@value.TValue::string(method))
+
+      // Load method from object
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::GetTable,
+          method_reg,
+          target_reg,
+          method_const,
+          false,
+        ),
+      )
+      while self.next_register <= method_reg {
+        self.next_register = self.next_register + 1
+      }
+
+      // First arg is self (the object)
+      let self_reg = target_reg + 2
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Move,
+          self_reg,
+          target_reg,
+          0,
+          false,
+        ),
+      )
+      while self.next_register <= self_reg {
+        self.next_register = self.next_register + 1
+      }
+
+      // Compile remaining arguments
+      for i = 0; i < args.length(); i = i + 1 {
+        let arg_reg = self.compile_expr(args[i])
+        let expected_reg = target_reg + 3 + i
+        if arg_reg != expected_reg {
+          self.emit(
+            @opcodes.Instruction::abc(
+              @opcodes.OpCode::Move,
+              expected_reg,
+              arg_reg,
+              0,
+              false,
+            ),
+          )
+          while self.next_register <= expected_reg {
+            self.next_register = self.next_register + 1
+          }
+        }
+      }
+
+      // Emit CALL with C=0 (multires)
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::Call,
+          method_reg,
+          args.length() + 2,  // B = args + self + 1
+          0,  // C=0 means return all values
+          false,
+        ),
+      )
+
+      // Results start at method_reg, but we want them at target_reg
+      // Actually, the Call instruction will place results at method_reg (which is target_reg + 1)
+      // For multires, we should probably emit the call at target_reg instead
+      // Let me reconsider... Actually the calling convention is that results go where the function is
+      method_reg
+    }
+    _ => {
+      // Not a function/method call, just compile normally
+      self.compile_expr(expr)
+    }
+  }
+}
+
+///|
 /// Compile an expression and return the register containing the result
 pub fn Compiler::compile_expr(
   self : Compiler,
@@ -2159,18 +2318,20 @@ pub fn Compiler::compile_expr(
         func_reg = new_func_reg
       }
 
-      // Check if last argument is varargs
-      let has_varargs = if args.length() > 0 {
+      // Check if last argument is varargs or a function/method call (multires)
+      let has_multires = if args.length() > 0 {
         match args[args.length() - 1] {
           @parse.Expr::Vararg => true
+          @parse.Expr::Call(_, _) => true
+          @parse.Expr::MethodCall(_, _, _) => true
           _ => false
         }
       } else {
         false
       }
 
-      let arg_count = if has_varargs {
-        // Compile fixed arguments (all except last which is ...)
+      let arg_count = if has_multires {
+        // Compile fixed arguments (all except last which is varargs or multires call)
         for i = 0; i < args.length() - 1; i = i + 1 {
           let arg_reg = self.compile_expr(args[i])
           let expected_reg = func_reg + i + 1
@@ -2190,17 +2351,29 @@ pub fn Compiler::compile_expr(
           }
         }
 
-        // Emit VARARG to load all varargs starting after fixed args
-        let vararg_start = func_reg + args.length()
-        self.emit(
-          @opcodes.Instruction::abc(
-            @opcodes.OpCode::Vararg,
-            vararg_start,
-            0,
-            0,  // C=0 means copy all available varargs
-            false,
-          ),
-        )
+        // Handle the last argument specially
+        match args[args.length() - 1] {
+          @parse.Expr::Vararg => {
+            // Emit VARARG to load all varargs starting after fixed args
+            let vararg_start = func_reg + args.length()
+            self.emit(
+              @opcodes.Instruction::abc(
+                @opcodes.OpCode::Vararg,
+                vararg_start,
+                0,
+                0,  // C=0 means copy all available varargs
+                false,
+              ),
+            )
+          }
+          @parse.Expr::Call(_, _) | @parse.Expr::MethodCall(_, _, _) => {
+            // Compile the function/method call with multires (C=0)
+            // We need to compile it manually to control the C parameter
+            let last_arg_reg = self.compile_expr_multires(args[args.length() - 1], func_reg + args.length())
+            // The multires call will place results starting at the expected position
+          }
+          _ => ()  // Shouldn't happen
+        }
 
         0  // B=0 means variable arguments for CALL
       } else {

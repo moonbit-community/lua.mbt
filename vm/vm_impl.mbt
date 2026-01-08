@@ -2418,8 +2418,8 @@ fn call_native_function(
         }
       }
 
-      // Return the compiled function
-      [func]
+      // Return the compiled function and nil (Lua load always returns 2 values)
+      [func, @value.TValue::nil()]
     }
     "io.write" => {
       // io.write(...) - Write to stdout
