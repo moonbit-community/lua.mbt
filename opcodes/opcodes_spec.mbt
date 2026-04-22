@@ -11,7 +11,7 @@ pub(all) enum OpMode {
   AsBx // A(8) | sBx(17 signed) | Op(7)
   Ax // Ax(25) | Op(7)
   SJ // sJ(25 signed) | Op(7)
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// Lua VM opcodes (subset for initial implementation)
@@ -75,7 +75,7 @@ pub(all) enum OpCode {
 
   // Varargs
   Vararg // R[A], R[A+1], ..., R[A+C-2] = vararg
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// 32-bit instruction type

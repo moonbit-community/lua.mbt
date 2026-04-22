@@ -10,7 +10,7 @@ pub struct CallFrame {
   mut pc : Int  // Program counter within this frame
   num_results : Int  // Number of expected results
   arg_count : Int  // Number of arguments passed to this function
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Create a new call frame
@@ -52,8 +52,12 @@ pub impl Show for LuaState with output(self, logger) {
     Some(_) => "Some(<function>)"
     None => "None"
   }
+  let stack_str = @debug.to_string(self.stack)
+  let globals_str = @debug.to_string(self.globals)
+  let call_stack_str = @debug.to_string(self.call_stack)
+  let open_upvalues_str = @debug.to_string(self.open_upvalues)
   logger.write_string(
-    "LuaState { stack: \{self.stack}, globals: \{self.globals}, call_stack: \{self.call_stack}, open_upvalues: \{self.open_upvalues}, compiler: \{compiler_str} }",
+    "LuaState { stack: \{stack_str}, globals: \{globals_str}, call_stack: \{call_stack_str}, open_upvalues: \{open_upvalues_str}, compiler: \{compiler_str} }",
   )
 }
 

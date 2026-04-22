@@ -9,7 +9,11 @@ pub(all) suberror VMError {
   DivisionByZero
   InvalidOperation(message~ : String)
   RuntimeError(message~ : String)
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
+
+pub impl Show for VMError with output(self, logger) {
+  logger.write_string(@debug.to_string(self))
+}
 
 ///|
 /// Execution result - indicates what should happen after instruction

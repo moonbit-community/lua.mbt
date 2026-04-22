@@ -61,7 +61,7 @@ let offset_sj : Int = 16777215 // ((1 << 25) - 1) >> 1
 /// 32-bit instruction representation
 pub struct Instruction {
   bits : UInt
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// Helper: Create a bitmask with n 1-bits starting at position p

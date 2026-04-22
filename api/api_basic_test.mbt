@@ -31,7 +31,7 @@ test "load and execute simple local declaration" {
   let api = LuaAPI::new()
   // Simple local variable declaration and arithmetic
   let status = try! api.load_string("local x = 1 + 2")
-  @json.inspect(status, content="OK")
+  json_inspect(status, content="OK")
 }
 
 ///|

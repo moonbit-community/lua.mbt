@@ -14,7 +14,11 @@ pub(all) enum LuaType {
   Function
   Userdata
   Thread
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
+
+pub impl Show for LuaType with output(self, logger) {
+  logger.write_string(@debug.to_string(self))
+}
 
 ///|
 /// Error types for value operations
@@ -22,7 +26,11 @@ pub(all) suberror ValueError {
   TypeMismatch(expected~ : LuaType, actual~ : LuaType)
   InvalidConversion(from~ : LuaType, to~ : LuaType)
   NilValue
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
+
+pub impl Show for ValueError with output(self, logger) {
+  logger.write_string(@debug.to_string(self))
+}
 
 ///|
 /// Tagged Value - the fundamental value representation in Lua

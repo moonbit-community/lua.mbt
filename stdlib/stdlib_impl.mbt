@@ -32,9 +32,9 @@ pub fn tonumber(value : @value.TValue) -> @value.TValue raise StdlibError {
     @value.TValue::Integer(_) | @value.TValue::Number(_) => value
     @value.TValue::String(s) => {
       // Try to parse as number (supports decimal and hex)
-      let num = if s.starts_with("0x") || s.starts_with("0X") {
+      let num = if s.has_prefix("0x") || s.has_prefix("0X") {
         // Parse hexadecimal
-        let hex_str = s.substring(start=2)
+        let hex_str = s[2:].to_string()
         match parse_hex_string(hex_str) {
           Some(n) => n.to_double()
           None =>
@@ -46,7 +46,7 @@ pub fn tonumber(value : @value.TValue) -> @value.TValue raise StdlibError {
         }
       } else {
         // Parse decimal
-        @strconv.parse_double(s) catch {
+        @string.parse_double(s) catch {
           _ =>
             raise StdlibError::InvalidArgument(
               func="tonumber",
@@ -402,7 +402,7 @@ fn matches_class(ch : UInt16, class : UInt16) -> Bool {
     }
     's' => {
       let c = ch.to_int().unsafe_to_char()
-      c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\x0b' || c == '\x0c'  // space
+      c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u000b' || c == '\u000c'  // space
     }
     'u' => {
       let c = ch.to_int().unsafe_to_char()
@@ -460,7 +460,7 @@ fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (I
           ch == pat_char
         }
 
-        if not(matches) { break }
+        if !matches { break }
         pos = pos + 1
 
         // Try matching rest of pattern after consuming this char
@@ -485,7 +485,7 @@ fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (I
           ch == pat_char
         }
 
-        if not(matches) { break }
+        if !matches { break }
         pos = pos + 1
         matched = matched + 1
 
@@ -527,7 +527,7 @@ fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (I
     ch == pat_char
   }
 
-  if not(matches) {
+  if !matches {
     return (-1, -1)
   }
 
@@ -563,12 +563,12 @@ pub fn string_find(
       let anchor_end = pat_len > 0 && pat[pat_len - 1] == '$'
 
       let search_pat = if anchor_start {
-        pat.substring(start=1)
+        pat[1:].to_string()
       } else {
         pat
       }
       let search_pat_final = if anchor_end && search_pat.length() > 0 {
-        search_pat.substring(end=search_pat.length() - 1)
+        search_pat[:search_pat.length() - 1].to_string()
       } else {
         search_pat
       }

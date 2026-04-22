@@ -71,7 +71,7 @@ pub(all) enum TokenType {
   TkComma // ,
   TkDot // .
   TkEof
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// Lexer errors
@@ -82,7 +82,7 @@ pub(all) suberror LexError {
   InvalidEscape(pos~ : Int, char~ : Char)
   InvalidLongString(pos~ : Int)
   UnterminatedLongString(pos~ : Int)
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// Token with position information
@@ -91,7 +91,7 @@ pub(all) struct Token {
   lexeme : String
   line : Int
   column : Int
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// Lexer state

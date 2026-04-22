@@ -10,7 +10,7 @@ pub struct Lexer {
   mut line : Int
   mut column : Int
   mut peek : Token?
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Create a new lexer from source code

@@ -8,7 +8,7 @@ pub struct UpvalueDesc {
   in_stack : Bool  // true = capture from parent's local, false = from parent's upvalue
   index : Int      // index in parent's locals or upvalues array
   name : String    // variable name (for debugging)
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Create a new upvalue descriptor
@@ -27,7 +27,7 @@ pub struct Proto[T] {
   upvalue_descs : Array[UpvalueDesc]  // Descriptors for capturing upvalues
   param_count : Int     // Number of parameters this function expects
   is_vararg : Bool      // Whether this function accepts varargs
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Create a new function prototype

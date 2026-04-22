@@ -7,7 +7,7 @@
 struct GCObject {
   size : Int
   color : GCColor
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Garbage collector state
@@ -30,7 +30,7 @@ pub struct GC {
   // Configuration parameters
   mut pause : Int // Percentage to wait before next GC (default 200%)
   mut step_mul : Int // Step multiplier (default 200%)
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Create a new GC
