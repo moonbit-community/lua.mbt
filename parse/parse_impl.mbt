@@ -443,7 +443,6 @@ fn Parser::parse_function_def(self : Parser) -> Stmt raise ParseError {
 
   // Check if this is a method definition (function a:x(params))
   // or a table field function (function a.b.c(params))
-  let mut table_name : String? = None
   let mut method_name : String? = None
   let mut final_name = name_tok.lexeme
 
@@ -453,7 +452,6 @@ fn Parser::parse_function_def(self : Parser) -> Stmt raise ParseError {
       // Method syntax: function a:x(params)
       ignore(self.advance())
       let method_tok = self.expect(@lex.TokenType::TkName)
-      table_name = Some(final_name)
       method_name = Some(method_tok.lexeme)
       final_name = final_name + "." + method_tok.lexeme
       break  // Colon can only appear once at the end

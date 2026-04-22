@@ -2102,6 +2102,7 @@ fn call_native_function(
         @value.TValue::String(str) => str
         _ => raise VMError::InvalidOperation(message="string.sub requires a string")
       }
+      ignore(s)
       let i = try {
         args[1].to_integer().to_int()
       } catch {
@@ -3356,6 +3357,7 @@ fn execute_return(
   let caller_frame = state.current_frame() catch {
     _ => raise VMError::RuntimeError(message="No caller frame")
   }
+  ignore(caller_frame)
 
   // Copy return values to caller's expected location
   // Calculate where the function was in the caller (where to write return values)
