@@ -1,6 +1,8 @@
 {
   "import": [
     "lua/opcodes",
-    "lua/proto"
+    "lua/proto",
+    "moonbitlang/core/debug",
+    "moonbitlang/core/string"
   ]
 }

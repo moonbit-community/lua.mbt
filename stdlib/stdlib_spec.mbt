@@ -7,7 +7,11 @@
 pub(all) suberror StdlibError {
   InvalidArgument(func~ : String, arg~ : Int, message~ : String)
   TypeMismatch(func~ : String, expected~ : String, actual~ : String)
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
+
+pub impl Show for StdlibError with output(self, logger) {
+  logger.write_string(@debug.to_string(self))
+}
 
 ///|
 /// Basic library functions

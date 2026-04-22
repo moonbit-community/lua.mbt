@@ -77,7 +77,7 @@ enum ExecutionResult {
   Jump(Int)         // Jump by offset
   Call              // Function call (frame already pushed)
   Return            // Function return (frame already popped)
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Calculate maximum register index used in code
@@ -374,7 +374,7 @@ pub fn execute_instruction(
         state,
         instr,
         base,
-        fn(a, b) {
+        fn(a, b) raise VMError {
           if b == 0.0 {
             raise VMError::DivisionByZero
           }
@@ -386,7 +386,7 @@ pub fn execute_instruction(
     }
     @opcodes.OpCode::Pow => {
       // Pow: R[A] := R[B] ^ R[C]
-      execute_binary_arith(state, instr, base, fn(a, b) { a.pow(b) }, "POW")
+      execute_binary_arith(state, instr, base, fn(a, b) { @math.pow(a, b) }, "POW")
       ExecutionResult::Continue
     }
     @opcodes.OpCode::BAnd => {
@@ -513,7 +513,7 @@ pub fn execute_instruction(
       }
       let num_b = num_b_double.to_int64()
       let num_c = num_c_double.to_int()
-      let result = num_b.lsl(num_c)
+      let result = num_b << num_c
       state.set(base + a + 1, @value.TValue::number(result.to_double())) catch {
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in SHL")
@@ -541,7 +541,7 @@ pub fn execute_instruction(
       }
       let num_b = num_b_double.to_int64()
       let num_c = num_c_double.to_int()
-      let result = num_b.lsr(num_c)
+      let result = (num_b.reinterpret_as_uint64() >> num_c).reinterpret_as_int64()
       state.set(base + a + 1, @value.TValue::number(result.to_double())) catch {
         _ =>
           raise VMError::RuntimeError(message="Invalid register write in SHR")
@@ -761,7 +761,7 @@ pub fn execute_instruction(
         state,
         instr,
         base,
-        fn(a, b) {
+        fn(a, b) raise VMError {
           a.less_than(b) catch {
             _ => raise VMError::InvalidOperation(message="LT comparison failed")
           }
@@ -782,7 +782,7 @@ pub fn execute_instruction(
         state,
         instr,
         base,
-        fn(a, b) {
+        fn(a, b) raise VMError {
           a.less_equal(b) catch {
             _ => {
               let a_str = a.to_string()

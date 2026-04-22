@@ -6,6 +6,7 @@
     "lua/parse",
     "lua/compile",
     "lua/vm",
-    "lua/stdlib"
+    "lua/stdlib",
+    "moonbitlang/core/debug"
   ]
 }

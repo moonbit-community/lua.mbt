@@ -7,7 +7,7 @@
 pub(all) suberror GCError {
   OutOfMemory
   InvalidObject
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// GC object colors (tri-color marking)
@@ -15,7 +15,7 @@ pub(all) enum GCColor {
   White
   Gray
   Black
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// GC statistics
@@ -24,7 +24,7 @@ pub(all) struct GCStats {
   gc_threshold : Int
   num_objects : Int
   num_collections : Int
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// Garbage collector state

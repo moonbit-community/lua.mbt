@@ -11,7 +11,7 @@ pub(all) suberror CompileError {
   UndefinedVariable(name~ : String, line~ : Int)
   BreakOutsideLoop(line~ : Int)
   InvalidSyntax(message~ : String, line~ : Int)
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// Compiler state

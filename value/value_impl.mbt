@@ -6,14 +6,14 @@
 /// Uses a mutable cell so it can be converted from Open to Closed
 pub struct UpvalueCell {
   mut kind : UpvalueKind
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// The actual upvalue storage - either open (stack reference) or closed (heap copy)
 pub enum UpvalueKind {
   Open(Int)  // Stack index
   Closed(Ref[TValue])  // Captured value
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Upvalue is a reference to a mutable cell
@@ -47,7 +47,7 @@ pub struct FunctionValue {
   upvalues : Array[Upvalue]  // Changed from Array[TValue] to Array[Upvalue]
   param_count : Int  // Number of parameters this function expects
   is_vararg : Bool   // Whether this function accepts varargs
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Create a new function value
@@ -97,7 +97,7 @@ pub fn FunctionValue::new_with_protos(
 /// The actual implementation is looked up in the VM
 pub struct NativeFunctionValue {
   name : String  // Function name for lookup (e.g., "print", "type", etc.)
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Create a new native function value
@@ -114,7 +114,7 @@ pub struct Table {
   array : Array[TValue]  // Array part for integer keys
   hash : Map[String, TValue]  // Hash part for string keys
   mut metatable : TValue  // Metatable for this table (Nil or another Table)
-} derive(Show)
+} derive(Debug)
 
 // Generate unique table IDs using a counter
 let table_id_counter : Ref[Int] = { val: 0 }
@@ -175,7 +175,7 @@ fn tvalue_to_hash_key(key : TValue) -> String? {
     TValue::Boolean(b) => Some("bool:" + b.to_string())
     TValue::Number(n) => Some("num:" + n.to_string())
     TValue::Table(t) => Some("table:" + t.id.to_string())
-    TValue::Function(f) => Some("func:" + f.to_string())
+    TValue::Function(f) => Some("func:" + @debug.to_string(f))
     TValue::NativeFunction(f) => Some("nfunc:" + f.name)
     _ => None  // Integer and String handled separately, Nil not valid as key
   }
@@ -286,7 +286,7 @@ pub enum TValue {
   Function(FunctionValue)
   NativeFunction(NativeFunctionValue)  // Native MoonBit functions
   Table(Table)  // Table support added
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Create a nil value
@@ -473,7 +473,7 @@ fn try_parse_number(s : String) -> Double? {
 
   // Parse as decimal number using standard library
   try {
-    Some(@strconv.parse_double!(trimmed))
+    Some(@string.parse_double(trimmed))
   } catch {
     _ => None
   }

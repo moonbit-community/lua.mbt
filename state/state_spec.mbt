@@ -12,7 +12,11 @@ pub(all) suberror StateError {
   CallStackUnderflow
   NoActiveFrame
   RuntimeError(message~ : String)  // For dynamic compilation errors
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
+
+pub impl Show for StateError with output(self, logger) {
+  logger.write_string(@debug.to_string(self))
+}
 
 ///|
 /// Lua VM state

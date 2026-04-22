@@ -11,7 +11,11 @@ pub(all) enum Status {
   ErrSyntax
   ErrMem
   ErrErr
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
+
+pub impl Show for Status with output(self, logger) {
+  logger.write_string(@debug.to_string(self))
+}
 
 ///|
 /// C API errors
@@ -20,7 +24,11 @@ pub(all) suberror APIError {
   TypeMismatch(expected~ : String, actual~ : String)
   SyntaxError(message~ : String)
   RuntimeError(message~ : String)
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
+
+pub impl Show for APIError with output(self, logger) {
+  logger.write_string(@debug.to_string(self))
+}
 
 ///|
 /// Lua API context (wraps LuaState with C-compatible interface)

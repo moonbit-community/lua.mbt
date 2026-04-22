@@ -4,7 +4,7 @@
 test "create nil value" {
   let val = TValue::nil()
   assert_true(val.is_nil())
-  @json.inspect(val.type_of(), content="Nil")
+  json_inspect(val.type_of(), content="Nil")
   assert_false(val.to_boolean()) // nil is falsy in Lua
 }
 
@@ -14,7 +14,7 @@ test "create boolean values" {
   let val_false = TValue::boolean(false)
   assert_true(val_true.is_boolean())
   assert_true(val_false.is_boolean())
-  @json.inspect(val_true.type_of(), content="Boolean")
+  json_inspect(val_true.type_of(), content="Boolean")
   assert_true(val_true.to_boolean())
   assert_false(val_false.to_boolean())
 }
@@ -24,9 +24,9 @@ test "create integer values" {
   let val = TValue::integer(42L)
   assert_true(val.is_number())
   assert_true(val.is_integer())
-  @json.inspect(val.type_of(), content="Number")
+  json_inspect(val.type_of(), content="Number")
   let result = try? val.to_integer()
-  inspect(result, content="Ok(42)")
+  debug_inspect(result, content="Ok(42)")
 }
 
 ///|
@@ -34,9 +34,9 @@ test "create float values" {
   let val = TValue::number(3.14)
   assert_true(val.is_number())
   assert_false(val.is_integer())
-  @json.inspect(val.type_of(), content="Number")
+  json_inspect(val.type_of(), content="Number")
   let result = try? val.to_number()
-  inspect(result, content="Ok(3.14)")
+  debug_inspect(result, content="Ok(3.14)")
 }
 
 ///|
@@ -68,7 +68,7 @@ test "comparison operations" {
   let num1 = TValue::integer(5L)
   let num2 = TValue::integer(10L)
   let lt_result = try? num1.less_than(num2)
-  inspect(lt_result, content="Ok(true)")
+  debug_inspect(lt_result, content="Ok(true)")
   let le_result = try? num1.less_equal(num2)
-  inspect(le_result, content="Ok(true)")
+  debug_inspect(le_result, content="Ok(true)")
 }

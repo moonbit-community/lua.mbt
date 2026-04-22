@@ -8,7 +8,7 @@ pub(all) suberror ParseError {
   UnexpectedToken(expected~ : String, actual~ : String, line~ : Int)
   UnexpectedEof(line~ : Int)
   InvalidSyntax(message~ : String, line~ : Int)
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// AST Expression nodes
@@ -64,7 +64,7 @@ pub(all) enum Expr {
   MethodCall(Expr, String, Array[Expr]) // obj:method(args)
   TableConstructor(Array[(Expr?, Expr)]) // {[key]=value, value, ...}
   Function(Array[String], Bool, Stmt) // (params, is_vararg, body)
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// AST Statement nodes
@@ -85,7 +85,7 @@ pub(all) enum Stmt {
   LocalFunctionDef(String, Array[String], Bool, Stmt)
   Goto(String) // goto label_name
   Label(String) // ::label_name::
-} derive(Eq, Show, ToJson)
+} derive(Eq, Debug, ToJson)
 
 ///|
 /// Parser state

@@ -8,14 +8,14 @@ struct LocalVar {
   name : String
   register : Int
   scope_depth : Int
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Jump label for backpatching
 struct JumpLabel {
   pc : Int // -1 means not yet defined
   patches : Array[Int] // Instruction positions to patch
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Helper: Find the last dot position in a string
@@ -113,7 +113,7 @@ pub struct Compiler {
 
   // Parent compiler for upvalue resolution (for closures)
   mut parent : Compiler?
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Create a new compiler

@@ -4,13 +4,13 @@
 test "lex numbers" {
   let lexer = Lexer::new("42 3.14 0xFF")
   let tok1 = try! lexer.next_token()
-  @json.inspect(tok1.type_, content="TkNumber")
+  json_inspect(tok1.type_, content="TkNumber")
   inspect(tok1.lexeme, content="42")
   let tok2 = try! lexer.next_token()
-  @json.inspect(tok2.type_, content="TkNumber")
+  json_inspect(tok2.type_, content="TkNumber")
   inspect(tok2.lexeme, content="3.14")
   let tok3 = try! lexer.next_token()
-  @json.inspect(tok3.type_, content="TkNumber")
+  json_inspect(tok3.type_, content="TkNumber")
   inspect(tok3.lexeme, content="0xFF")
 }
 
@@ -18,23 +18,23 @@ test "lex numbers" {
 test "lex keywords" {
   let lexer = Lexer::new("if then else end")
   let tok1 = try! lexer.next_token()
-  @json.inspect(tok1.type_, content="TkIf")
+  json_inspect(tok1.type_, content="TkIf")
   let tok2 = try! lexer.next_token()
-  @json.inspect(tok2.type_, content="TkThen")
+  json_inspect(tok2.type_, content="TkThen")
   let tok3 = try! lexer.next_token()
-  @json.inspect(tok3.type_, content="TkElse")
+  json_inspect(tok3.type_, content="TkElse")
   let tok4 = try! lexer.next_token()
-  @json.inspect(tok4.type_, content="TkEnd")
+  json_inspect(tok4.type_, content="TkEnd")
 }
 
 ///|
 test "lex identifiers" {
   let lexer = Lexer::new("foo bar_123 _test")
   let tok1 = try! lexer.next_token()
-  @json.inspect(tok1.type_, content="TkName")
+  json_inspect(tok1.type_, content="TkName")
   inspect(tok1.lexeme, content="foo")
   let tok2 = try! lexer.next_token()
-  @json.inspect(tok2.type_, content="TkName")
+  json_inspect(tok2.type_, content="TkName")
   inspect(tok2.lexeme, content="bar_123")
 }
 
@@ -45,24 +45,24 @@ test "lex strings" {
     #|
   let lexer = Lexer::new(source)
   let tok1 = try! lexer.next_token()
-  @json.inspect(tok1.type_, content="TkString")
+  json_inspect(tok1.type_, content="TkString")
   inspect(tok1.lexeme, content="hello world")
   let tok2 = try! lexer.next_token()
-  @json.inspect(tok2.type_, content="TkString")
+  json_inspect(tok2.type_, content="TkString")
   inspect(tok2.lexeme, content="test")
 }
 
 ///|
 test "lex operators" {
   let lexer = Lexer::new("+ - * / == ~= <= >=")
-  @json.inspect((try! lexer.next_token()).type_, content="TkPlus")
-  @json.inspect((try! lexer.next_token()).type_, content="TkMinus")
-  @json.inspect((try! lexer.next_token()).type_, content="TkMul")
-  @json.inspect((try! lexer.next_token()).type_, content="TkDiv")
-  @json.inspect((try! lexer.next_token()).type_, content="TkEq")
-  @json.inspect((try! lexer.next_token()).type_, content="TkNe")
-  @json.inspect((try! lexer.next_token()).type_, content="TkLe")
-  @json.inspect((try! lexer.next_token()).type_, content="TkGe")
+  json_inspect((try! lexer.next_token()).type_, content="TkPlus")
+  json_inspect((try! lexer.next_token()).type_, content="TkMinus")
+  json_inspect((try! lexer.next_token()).type_, content="TkMul")
+  json_inspect((try! lexer.next_token()).type_, content="TkDiv")
+  json_inspect((try! lexer.next_token()).type_, content="TkEq")
+  json_inspect((try! lexer.next_token()).type_, content="TkNe")
+  json_inspect((try! lexer.next_token()).type_, content="TkLe")
+  json_inspect((try! lexer.next_token()).type_, content="TkGe")
 }
 
 ///|

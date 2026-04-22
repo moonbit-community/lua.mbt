@@ -176,7 +176,7 @@ fn parse_hex_float(hex_str : String) -> Double? {
 /// Parser state
 pub struct Parser {
   lexer : @lex.Lexer
-} derive(Show)
+} derive(Debug)
 
 ///|
 /// Create a new parser from lexer
@@ -210,8 +210,8 @@ fn Parser::expect(
   let tok = self.advance()
   if tok.type_ != expected {
     raise ParseError::UnexpectedToken(
-      expected=expected.to_string(),
-      actual=tok.type_.to_string(),
+      expected=@debug.to_string(expected),
+      actual=@debug.to_string(tok.type_),
       line=tok.line,
     )
   }
@@ -925,9 +925,9 @@ fn Parser::parse_primary(self : Parser) -> Expr raise ParseError {
     @lex.TokenType::TkNumber => {
       let tok = self.advance()
       // Parse the number
-      let num = if tok.lexeme.starts_with("0x") || tok.lexeme.starts_with("0X") {
+      let num = if tok.lexeme.has_prefix("0x") || tok.lexeme.has_prefix("0X") {
         // Parse hex number (could be integer or float)
-        let hex_str = tok.lexeme.substring(start=2) // Skip "0x" or "0X"
+        let hex_str = tok.lexeme[2:].to_string() // Skip "0x" or "0X"
 
         // Check if it contains decimal point or exponent (p/P) -> hex float
         if hex_str.contains(".") || hex_str.contains("p") || hex_str.contains("P") {
@@ -951,7 +951,7 @@ fn Parser::parse_primary(self : Parser) -> Expr raise ParseError {
           }
         }
       } else {
-        @strconv.parse_double(tok.lexeme) catch {
+        @string.parse_double(tok.lexeme) catch {
           _ =>
             raise ParseError::InvalidSyntax(
               message="Invalid number literal",
@@ -985,7 +985,7 @@ fn Parser::parse_primary(self : Parser) -> Expr raise ParseError {
       let tok = self.advance()
       raise ParseError::UnexpectedToken(
         expected="expression",
-        actual=tok.type_.to_string(),
+        actual=@debug.to_string(tok.type_),
         line=tok.line,
       )
     }
