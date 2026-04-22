@@ -238,7 +238,7 @@ fn Lexer::skip_whitespace(self : Lexer) -> Unit {
 
 ///|
 /// Scan a number token
-fn Lexer::scan_number(self : Lexer) -> Token raise LexError {
+fn Lexer::scan_number(self : Lexer) -> Token {
   let start_line = self.line
   let start_column = self.column
   let start_pos = self.pos

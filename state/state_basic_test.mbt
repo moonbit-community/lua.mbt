@@ -37,7 +37,7 @@ test "global variables" {
   let state = LuaState::new()
   state.set_global("x", @value.TValue::integer(100L))
   assert_true(state.has_global("x"))
-  let val = try! state.get_global("x")
+  let val = state.get_global("x")
   inspect(try? val.to_integer(), content="Ok(100)")
 }
 

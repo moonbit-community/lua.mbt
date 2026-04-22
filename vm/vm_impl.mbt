@@ -993,9 +993,7 @@ pub fn execute_instruction(
       }
 
       // Get value from globals (returns nil for undefined globals)
-      let value = state.get_global(name) catch {
-        err => raise VMError::RuntimeError(message="Unexpected error getting global '\{name}': \{err}")
-      }
+      let value = state.get_global(name)
       let target_index = base + a + 1
 
       // Ensure stack is large enough for this write
@@ -2549,9 +2547,7 @@ fn call_native_function(
         _ => return [@value.TValue::nil()]
       }
       // Get global variable
-      let value = state.get_global(key) catch {
-        _ => @value.TValue::nil()
-      }
+      let value = state.get_global(key)
       [value]
     }
     "_G__newindex" => {
@@ -2853,11 +2849,11 @@ fn call_native_function(
       }
 
       // Get package table
-      let package_val = state.get_global("package") catch {
-        _ => raise VMError::InvalidOperation(message="require: package table not found")
-      }
+      let package_val = state.get_global("package")
       let package_table = match package_val {
         @value.TValue::Table(pkg_tbl) => pkg_tbl
+        @value.TValue::Nil =>
+          raise VMError::InvalidOperation(message="require: package table not found")
         _ => raise VMError::InvalidOperation(message="require: package is not a table")
       }
 
@@ -3355,9 +3351,7 @@ fn execute_return(
 
   // Close any open upvalues for this frame's stack
   // This captures local variables that are being closed over
-  state.close_upvalues(frame.base) catch {
-    _ => ()  // Ignore errors during upvalue closing
-  }
+  state.close_upvalues(frame.base)
 
   // If this is the last frame, we're returning from main - just return
   if state.call_depth() == 0 {

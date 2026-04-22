@@ -221,7 +221,7 @@ pub fn LuaAPI::pcall(
   self : LuaAPI,
   nargs : Int,
   nresults : Int,
-) -> Status raise APIError {
+) -> Status {
   // For now, this is a simplified implementation
   // In a full implementation, this would execute a function on the stack
   ignore(nargs)
@@ -232,7 +232,7 @@ pub fn LuaAPI::pcall(
 ///|
 /// Get global variable and push onto stack
 pub fn LuaAPI::get_global(self : LuaAPI, name : String) -> Unit {
-  let value = self.state.get_global(name) catch { _ => @value.TValue::nil() }
+  let value = self.state.get_global(name)
   self.state.push(value)
 }
 

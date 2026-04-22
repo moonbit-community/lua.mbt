@@ -59,7 +59,7 @@ pub fn LuaAPI::pcall(
   self : LuaAPI,
   nargs : Int,
   nresults : Int,
-) -> Status raise APIError {
+) -> Status {
   ...
 }
 

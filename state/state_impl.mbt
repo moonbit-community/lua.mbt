@@ -188,7 +188,7 @@ pub fn LuaState::set_global(
 pub fn LuaState::get_global(
   self : LuaState,
   name : String,
-) -> @value.TValue raise StateError {
+) -> @value.TValue {
   match self.globals.get(name) {
     Some(value) => value
     None => @value.TValue::nil()  // Undefined globals return nil in Lua
@@ -288,7 +288,7 @@ pub fn LuaState::find_or_create_upvalue(
 pub fn LuaState::close_upvalues(
   self : LuaState,
   stack_index : Int,
-) -> Unit raise StateError {
+) -> Unit {
   // Collect indices to remove (can't modify map while iterating)
   let to_close : Array[Int] = []
 
