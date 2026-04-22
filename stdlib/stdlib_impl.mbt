@@ -251,12 +251,7 @@ pub fn string_sub(
         if start_idx >= actual_end {
           ""
         } else {
-          // Handle potential CreatingViewError from string slicing
-          try {
-            str[start_idx:actual_end].to_string()
-          } catch {
-            _ => ""  // Return empty string on slicing error
-          }
+          str[start_idx:actual_end].to_string()
         }
       }
     }
