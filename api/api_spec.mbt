@@ -13,6 +13,7 @@ pub(all) enum Status {
   ErrErr
 } derive(Eq, Debug, ToJson)
 
+///|
 pub impl Show for Status with output(self, logger) {
   logger.write_string(@debug.to_string(self))
 }
@@ -26,6 +27,7 @@ pub(all) suberror APIError {
   RuntimeError(message~ : String)
 } derive(Eq, Debug, ToJson)
 
+///|
 pub impl Show for APIError with output(self, logger) {
   logger.write_string(@debug.to_string(self))
 }
@@ -55,11 +57,7 @@ pub fn LuaAPI::load_string(
 ///|
 /// Execute loaded code
 #declaration_only
-pub fn LuaAPI::pcall(
-  self : LuaAPI,
-  nargs : Int,
-  nresults : Int,
-) -> Status {
+pub fn LuaAPI::pcall(self : LuaAPI, nargs : Int, nresults : Int) -> Status {
   ...
 }
 

@@ -75,7 +75,7 @@ fn parse_hex_float(hex_str : String) -> Double? {
   if i < len {
     let c = hex_str[i]
     if c == '.' {
-      i = i + 1  // skip '.'
+      i = i + 1 // skip '.'
       let mut frac_value : Double = 0.0
       let mut frac_digits = 0
       while i < len {
@@ -115,7 +115,7 @@ fn parse_hex_float(hex_str : String) -> Double? {
           divisor = divisor * 16.0
           j = j + 1
         }
-        value = value + (frac_value / divisor)
+        value = value + frac_value / divisor
       }
     }
   }
@@ -124,7 +124,7 @@ fn parse_hex_float(hex_str : String) -> Double? {
   if i < len {
     let c = hex_str[i]
     if c == 'p' || c == 'P' {
-      i = i + 1  // skip 'p' or 'P'
+      i = i + 1 // skip 'p' or 'P'
 
       // Check for sign
       let mut exp_sign = 1
@@ -170,7 +170,6 @@ fn parse_hex_float(hex_str : String) -> Double? {
 
   Some(value)
 }
-
 
 ///|
 /// Parser state
@@ -349,11 +348,11 @@ fn Parser::parse_if(self : Parser) -> Stmt raise ParseError {
 /// Parse elseif/else chain (helper for parse_if)
 fn Parser::parse_else_chain(self : Parser) -> Stmt? raise ParseError {
   if self.check(@lex.TokenType::TkElseif) {
-    ignore(self.advance())  // Consume 'elseif'
+    ignore(self.advance()) // Consume 'elseif'
     let cond = self.parse_expr()
     ignore(self.expect(@lex.TokenType::TkThen))
     let then_block = self.parse_block()
-    let else_block = self.parse_else_chain()  // Recursive for more elseif/else
+    let else_block = self.parse_else_chain() // Recursive for more elseif/else
     Some(Stmt::If(cond, then_block, else_block))
   } else if self.check(@lex.TokenType::TkElse) {
     ignore(self.advance())
@@ -454,7 +453,7 @@ fn Parser::parse_function_def(self : Parser) -> Stmt raise ParseError {
       let method_tok = self.expect(@lex.TokenType::TkName)
       method_name = Some(method_tok.lexeme)
       final_name = final_name + "." + method_tok.lexeme
-      break  // Colon can only appear once at the end
+      break // Colon can only appear once at the end
     } else {
       // Dotted name: function a.b.c(params)
       ignore(self.advance())
@@ -589,7 +588,8 @@ fn Parser::parse_expr_stmt(self : Parser) -> Stmt raise ParseError {
   // Check if it's a function call or method call
   match first {
     Expr::Call(func, args) => Stmt::FunctionCall(func, args)
-    Expr::MethodCall(obj, method_name, args) => Stmt::MethodCall(obj, method_name, args)
+    Expr::MethodCall(obj, method_name, args) =>
+      Stmt::MethodCall(obj, method_name, args)
     _ =>
       raise ParseError::InvalidSyntax(
         message="Expected assignment or function call",
@@ -882,20 +882,21 @@ fn Parser::parse_postfix(self : Parser) -> Expr raise ParseError {
           @lex.TokenType::TkString => {
             // obj:method"string" (without parentheses)
             let tok = self.advance()
-            expr = Expr::MethodCall(expr, method_tok.lexeme, [Expr::String(tok.lexeme)])
+            expr = Expr::MethodCall(expr, method_tok.lexeme, [
+              Expr::String(tok.lexeme),
+            ])
           }
           @lex.TokenType::TkLbrace => {
             // obj:method{table} (without parentheses)
             let table = self.parse_table_constructor()
             expr = Expr::MethodCall(expr, method_tok.lexeme, [table])
           }
-          _ => {
+          _ =>
             // No arguments - this is invalid, method calls need arguments
             raise ParseError::InvalidSyntax(
               message="method call requires arguments",
-              line=self.lexer.current_line()
+              line=self.lexer.current_line(),
             )
-          }
         }
       }
       _ => break
@@ -928,7 +929,9 @@ fn Parser::parse_primary(self : Parser) -> Expr raise ParseError {
         let hex_str = tok.lexeme[2:].to_string() // Skip "0x" or "0X"
 
         // Check if it contains decimal point or exponent (p/P) -> hex float
-        if hex_str.contains(".") || hex_str.contains("p") || hex_str.contains("P") {
+        if hex_str.contains(".") ||
+          hex_str.contains("p") ||
+          hex_str.contains("P") {
           match parse_hex_float(hex_str) {
             Some(v) => v
             None =>

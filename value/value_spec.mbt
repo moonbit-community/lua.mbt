@@ -16,6 +16,7 @@ pub(all) enum LuaType {
   Thread
 } derive(Eq, Debug, ToJson)
 
+///|
 pub impl Show for LuaType with output(self, logger) {
   logger.write_string(@debug.to_string(self))
 }
@@ -28,6 +29,7 @@ pub(all) suberror ValueError {
   NilValue
 } derive(Eq, Debug, ToJson)
 
+///|
 pub impl Show for ValueError with output(self, logger) {
   logger.write_string(@debug.to_string(self))
 }
