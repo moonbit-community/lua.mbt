@@ -1,5 +1,6 @@
 {
   "is_main": true,
+  "supported_targets": "js",
   "import": [
     "TheWaWaR/clap",
     "moonbitlang/x/sys",
