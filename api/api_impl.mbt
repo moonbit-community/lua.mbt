@@ -156,6 +156,7 @@ pub fn LuaAPI::compile_string(
   self : LuaAPI,
   source : String,
 ) -> @value.TValue raise APIError {
+  ignore(self)
   // Lex the source
   let lexer = @lex.Lexer::new(source)
 
@@ -224,6 +225,7 @@ pub fn LuaAPI::pcall(
 ) -> Status {
   // For now, this is a simplified implementation
   // In a full implementation, this would execute a function on the stack
+  ignore(self)
   ignore(nargs)
   ignore(nresults)
   Status::OK

@@ -11,25 +11,6 @@ struct LocalVar {
 } derive(Debug)
 
 ///|
-/// Jump label for backpatching
-struct JumpLabel {
-  pc : Int // -1 means not yet defined
-  patches : Array[Int] // Instruction positions to patch
-} derive(Debug)
-
-///|
-/// Helper: Find the last dot position in a string
-fn find_last_dot(s : String) -> Int {
-  let mut last_dot = -1
-  for i = 0; i < s.length(); i = i + 1 {
-    if s[i].to_int() == '.'.to_int() {
-      last_dot = i
-    }
-  }
-  last_dot
-}
-
-///|
 /// Helper: Split string by dots into array of parts
 fn split_by_dots(s : String) -> Array[String] {
   let parts : Array[String] = []
@@ -53,14 +34,6 @@ fn split_by_dots(s : String) -> Array[String] {
     }
   }
   parts
-}
-
-///|
-/// Helper: Extract substring using string slice notation
-fn get_substring(s : String, start : Int, end : Int) -> String {
-  // MoonBit supports string slicing with [start:end]
-  let slice_result = s[start:end]
-  slice_result.to_string()
 }
 
 ///|
@@ -90,9 +63,6 @@ pub struct Compiler {
   // Stack of register counts at each scope level (for restoring on exit)
   scope_register_base : Array[Int]
 
-  // Jump labels for control flow
-  jump_labels : Array[JumpLabel]
-
   // Stack of break jump positions for nested loops
   break_jumps : Array[Array[Int]]
 
@@ -115,7 +85,6 @@ pub fn Compiler::new() -> Compiler {
     scope_depth: 0,
     next_register: 0,
     scope_register_base: [],
-    jump_labels: [],
     break_jumps: [],
     is_vararg: false,
     parent: None,
@@ -128,14 +97,6 @@ fn Compiler::alloc_register(self : Compiler) -> Int {
   let reg = self.next_register
   self.next_register = self.next_register + 1
   reg
-}
-
-///|
-/// Free the last allocated register
-fn Compiler::free_register(self : Compiler) -> Unit {
-  if self.next_register > 0 {
-    self.next_register = self.next_register - 1
-  }
 }
 
 ///|
@@ -287,18 +248,6 @@ fn compile_function_body(
   let upvalue_count = func_compiler.upvalues.length()
   let proto = func_compiler.finish(params.length(), is_vararg)
   (proto, upvalue_count)
-}
-
-///|
-/// Compile a statement with parent compiler context for upvalue resolution
-fn compile_stmt_with_parent(
-  compiler : Compiler,
-  stmt : @parse.Stmt,
-  parent : Compiler,
-) -> Unit raise CompileError {
-  // For now, just compile normally - we'll add upvalue resolution in expressions
-  // This is a placeholder for the full implementation
-  compiler.compile_stmt(stmt)
 }
 
 ///|
@@ -1552,7 +1501,6 @@ pub fn Compiler::compile_stmt(
       ignore(label)
       ()
     }
-    _ => () // Ignore other statements for now
   }
 }
 
@@ -2392,7 +2340,7 @@ pub fn Compiler::compile_expr(
           @parse.Expr::Call(_, _) | @parse.Expr::MethodCall(_, _, _) => {
             // Compile the function/method call with multires (C=0)
             // We need to compile it manually to control the C parameter
-            let last_arg_reg = self.compile_expr_multires(args[args.length() - 1], func_reg + args.length())
+            ignore(self.compile_expr_multires(args[args.length() - 1], func_reg + args.length()))
             // The multires call will place results starting at the expected position
           }
           _ => ()  // Shouldn't happen
@@ -2903,14 +2851,6 @@ pub fn Compiler::compile_expr(
         ),
       )
       result_reg
-    }
-    _ => {
-      // For unimplemented expressions, just return a nil
-      let reg = self.alloc_register()
-      self.emit(
-        @opcodes.Instruction::abc(@opcodes.OpCode::LoadNil, reg, 0, 0, false),
-      )
-      reg
     }
   }
 }

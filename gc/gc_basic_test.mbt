@@ -13,6 +13,8 @@ test "allocate objects" {
   let gc = GC::new()
   let obj1 = try! gc.allocate(100)
   let obj2 = try! gc.allocate(200)
+  ignore(obj1)
+  ignore(obj2)
   let stats = gc.stats()
   inspect(stats.num_objects, content="2")
   assert_true(stats.total_bytes >= 300)
