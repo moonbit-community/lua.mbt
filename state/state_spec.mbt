@@ -89,7 +89,7 @@ pub fn LuaState::set_global(
 pub fn LuaState::get_global(
   self : LuaState,
   name : String,
-) -> @value.TValue raise StateError {
+) -> @value.TValue {
   ...
 }
 
