@@ -241,9 +241,9 @@ pub fn execute_instruction(
             _ => @value.TValue::nil()
           }
         }
-        @value.UpvalueKind::Closed(ref) => {
+        @value.UpvalueKind::Closed(cell) => {
           // Closed upvalue - read from captured value
-          ref.val
+          cell.val
         }
       }
 
@@ -289,9 +289,9 @@ pub fn execute_instruction(
             _ => raise VMError::RuntimeError(message="Failed to write to open upvalue")
           }
         }
-        @value.UpvalueKind::Closed(ref) => {
+        @value.UpvalueKind::Closed(cell) => {
           // Closed upvalue - write to captured value
-          ref.val = value
+          cell.val = value
         }
       }
       ExecutionResult::Continue
@@ -3320,10 +3320,10 @@ fn get_metamethod(table : @value.Table, method_name : String) -> @value.TValue? 
   let metatable = table.get_metatable()
   match metatable {
     @value.TValue::Table(mt) => {
-      let method = mt.get_string(method_name)
-      match method {
+      let metamethod = mt.get_string(method_name)
+      match metamethod {
         @value.TValue::Nil => None
-        _ => Some(method)
+        _ => Some(metamethod)
       }
     }
     _ => None

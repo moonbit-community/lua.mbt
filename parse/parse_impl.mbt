@@ -591,7 +591,7 @@ fn Parser::parse_expr_stmt(self : Parser) -> Stmt raise ParseError {
   // Check if it's a function call or method call
   match first {
     Expr::Call(func, args) => Stmt::FunctionCall(func, args)
-    Expr::MethodCall(obj, method, args) => Stmt::MethodCall(obj, method, args)
+    Expr::MethodCall(obj, method_name, args) => Stmt::MethodCall(obj, method_name, args)
     _ =>
       raise ParseError::InvalidSyntax(
         message="Expected assignment or function call",

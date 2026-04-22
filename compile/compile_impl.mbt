@@ -429,9 +429,9 @@ pub fn Compiler::compile_stmt(
         // Restore baseline after statement (but keep any new locals)
         // Find highest register used by locals at current scope
         let mut max_local_reg = -1
-        for local in self.locals {
-          if local.scope_depth == self.scope_depth && local.register > max_local_reg {
-            max_local_reg = local.register
+        for local_var in self.locals {
+          if local_var.scope_depth == self.scope_depth && local_var.register > max_local_reg {
+            max_local_reg = local_var.register
           }
         }
         // Reset to max(baseline, max_local_reg + 1) to preserve new locals
@@ -802,9 +802,9 @@ pub fn Compiler::compile_stmt(
             self.compile_stmt(s)
             // Restore baseline after statement (but keep any new locals)
             let mut max_local_reg = -1
-            for local in self.locals {
-              if local.scope_depth == self.scope_depth && local.register > max_local_reg {
-                max_local_reg = local.register
+            for local_var in self.locals {
+              if local_var.scope_depth == self.scope_depth && local_var.register > max_local_reg {
+                max_local_reg = local_var.register
               }
             }
             let target_reg = if max_local_reg >= baseline {
@@ -1186,7 +1186,7 @@ pub fn Compiler::compile_stmt(
         ),
       )
     }
-    @parse.Stmt::MethodCall(obj_expr, method, args) => {
+    @parse.Stmt::MethodCall(obj_expr, method_name, args) => {
       // Compile method call statement: obj:method(args)
       // This is sugar for obj.method(obj, args)
 
@@ -1198,7 +1198,7 @@ pub fn Compiler::compile_stmt(
 
       // Load method name into a register first
       let method_name_reg = self.alloc_register()
-      let method_const = self.add_constant(@value.TValue::string(method))
+      let method_const = self.add_constant(@value.TValue::string(method_name))
       self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, method_name_reg, method_const))
 
       // Load method from object: method_reg = obj[method_name]
@@ -1631,7 +1631,7 @@ fn Compiler::compile_expr_multires(
 
       target_reg
     }
-    @parse.Expr::MethodCall(obj_expr, method, args) => {
+    @parse.Expr::MethodCall(obj_expr, method_name, args) => {
       // Compile method call with multires
       let obj_reg = self.compile_expr(obj_expr)
 
@@ -1652,7 +1652,7 @@ fn Compiler::compile_expr_multires(
       }
 
       let method_reg = target_reg + 1
-      let method_const = self.add_constant(@value.TValue::string(method))
+      let method_const = self.add_constant(@value.TValue::string(method_name))
 
       // Load method from object
       self.emit(
@@ -2452,7 +2452,7 @@ pub fn Compiler::compile_expr(
       // The result will be in func_reg position after call
       func_reg
     }
-    @parse.Expr::MethodCall(obj_expr, method, args) => {
+    @parse.Expr::MethodCall(obj_expr, method_name, args) => {
       // Compile method call: obj:method(args)
       // This is sugar for obj.method(obj, args)
 
@@ -2464,7 +2464,7 @@ pub fn Compiler::compile_expr(
 
       // Load method name into a register first
       let method_name_reg = self.alloc_register()
-      let method_const = self.add_constant(@value.TValue::string(method))
+      let method_const = self.add_constant(@value.TValue::string(method_name))
       self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, method_name_reg, method_const))
 
       // Load method from object: method_reg = obj[method_name]
@@ -2963,9 +2963,9 @@ pub fn compile(stmt : @parse.Stmt) -> @proto.Proto[@value.TValue] raise CompileE
         // Restore baseline after statement (but keep any new locals)
         // Find highest register used by locals at current scope
         let mut max_local_reg = -1
-        for local in compiler.locals {
-          if local.scope_depth == compiler.scope_depth && local.register > max_local_reg {
-            max_local_reg = local.register
+        for local_var in compiler.locals {
+          if local_var.scope_depth == compiler.scope_depth && local_var.register > max_local_reg {
+            max_local_reg = local_var.register
           }
         }
         // Reset to max(baseline, max_local_reg + 1) to preserve new locals
