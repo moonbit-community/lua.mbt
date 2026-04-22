@@ -1,16 +1,17 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "lua/gc"
 
+import {
+  "moonbitlang/core/debug",
+}
+
 // Values
 
 // Errors
 pub(all) suberror GCError {
   OutOfMemory
   InvalidObject
-}
-pub impl Eq for GCError
-pub impl Show for GCError
-pub impl ToJson for GCError
+} derive(Eq, ToJson, @debug.Debug)
 
 // Types and methods
 pub struct GC {
@@ -21,7 +22,7 @@ pub struct GC {
   mut num_collections : Int
   mut pause : Int
   mut step_mul : Int
-}
+} derive(@debug.Debug)
 pub fn GC::allocate(Self, Int) -> Int raise GCError
 pub fn GC::collect(Self) -> Int
 pub fn GC::full_collect(Self) -> Int
@@ -30,29 +31,21 @@ pub fn GC::new() -> Self
 pub fn GC::set_pause(Self, Int) -> Unit
 pub fn GC::set_step_mul(Self, Int) -> Unit
 pub fn GC::stats(Self) -> GCStats
-pub impl Show for GC
 
 pub(all) enum GCColor {
   White
   Gray
   Black
-}
-pub impl Eq for GCColor
-pub impl Show for GCColor
-pub impl ToJson for GCColor
+} derive(Eq, ToJson, @debug.Debug)
 
-type GCObject
-pub impl Show for GCObject
+type GCObject derive(@debug.Debug)
 
 pub(all) struct GCStats {
   total_bytes : Int
   gc_threshold : Int
   num_objects : Int
   num_collections : Int
-}
-pub impl Eq for GCStats
-pub impl Show for GCStats
-pub impl ToJson for GCStats
+} derive(Eq, ToJson, @debug.Debug)
 
 // Type aliases
 

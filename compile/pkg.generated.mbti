@@ -1,15 +1,16 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "lua/compile"
 
-import(
-  "lua/opcodes"
-  "lua/parse"
-  "lua/value"
-  "lua/vm"
-)
+import {
+  "lua/opcodes",
+  "lua/parse",
+  "lua/proto",
+  "lua/value",
+  "moonbitlang/core/debug",
+}
 
 // Values
-pub fn compile(@parse.Stmt) -> @vm.Proto raise CompileError
+pub fn compile(@parse.Stmt) -> @proto.Proto[@value.TValue] raise CompileError
 
 // Errors
 pub(all) suberror CompileError {
@@ -17,26 +18,30 @@ pub(all) suberror CompileError {
   TooManyConstants(line~ : Int)
   InvalidJumpTarget(line~ : Int)
   UndefinedVariable(name~ : String, line~ : Int)
-}
-pub impl Eq for CompileError
-pub impl Show for CompileError
-pub impl ToJson for CompileError
+  BreakOutsideLoop(line~ : Int)
+  InvalidSyntax(message~ : String, line~ : Int)
+} derive(Eq, ToJson, @debug.Debug)
 
 // Types and methods
 pub struct Compiler {
   code : Array[@opcodes.Instruction]
   constants : Array[@value.TValue]
+  protos : Array[@proto.Proto[@value.TValue]]
   locals : Array[LocalVar]
+  upvalues : Array[@proto.UpvalueDesc]
+  mut scope_depth : Int
   mut next_register : Int
-}
+  scope_register_base : Array[Int]
+  break_jumps : Array[Array[Int]]
+  mut is_vararg : Bool
+  mut parent : Compiler?
+} derive(@debug.Debug)
 pub fn Compiler::compile_expr(Self, @parse.Expr) -> Int raise CompileError
 pub fn Compiler::compile_stmt(Self, @parse.Stmt) -> Unit raise CompileError
-pub fn Compiler::finish(Self) -> @vm.Proto
+pub fn Compiler::finish(Self, Int, Bool) -> @proto.Proto[@value.TValue]
 pub fn Compiler::new() -> Self
-pub impl Show for Compiler
 
-type LocalVar
-pub impl Show for LocalVar
+type LocalVar derive(@debug.Debug)
 
 // Type aliases
 

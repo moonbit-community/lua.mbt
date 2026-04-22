@@ -1,9 +1,11 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "lua/state"
 
-import(
-  "lua/value"
-)
+import {
+  "lua/value",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/ref",
+}
 
 // Values
 
@@ -13,25 +15,48 @@ pub(all) suberror StateError {
   StackUnderflow
   InvalidStackIndex(index~ : Int)
   GlobalNotFound(name~ : String)
-}
-pub impl Eq for StateError
+  CallStackUnderflow
+  NoActiveFrame
+  RuntimeError(message~ : String)
+} derive(Eq, ToJson, @debug.Debug)
 pub impl Show for StateError
-pub impl ToJson for StateError
 
 // Types and methods
+pub struct CallFrame {
+  func : @value.FunctionValue
+  base : Int
+  mut pc : Int
+  num_results : Int
+  arg_count : Int
+} derive(@debug.Debug)
+pub fn CallFrame::new(@value.FunctionValue, Int, Int, Int) -> Self
+
 pub struct LuaState {
   stack : Array[@value.TValue]
   globals : Map[String, @value.TValue]
+  call_stack : Array[CallFrame]
+  open_upvalues : Map[Int, @ref.Ref[@value.UpvalueCell]]
+  mut compiler : ((String) -> @value.TValue raise StateError)?
 }
+pub fn LuaState::call_depth(Self) -> Int
+pub fn LuaState::close_upvalues(Self, Int) -> Unit
+pub fn LuaState::compile_string(Self, String) -> @value.TValue raise StateError
+pub fn LuaState::current_frame(Self) -> CallFrame raise StateError
+pub fn LuaState::current_frame_mut(Self) -> CallFrame raise StateError
+pub fn LuaState::find_or_create_upvalue(Self, Int) -> @ref.Ref[@value.UpvalueCell]
 pub fn LuaState::get(Self, Int) -> @value.TValue raise StateError
-pub fn LuaState::get_global(Self, String) -> @value.TValue raise StateError
+pub fn LuaState::get_global(Self, String) -> @value.TValue
 pub fn LuaState::has_global(Self, String) -> Bool
 pub fn LuaState::new() -> Self
 pub fn LuaState::pop(Self) -> @value.TValue raise StateError
+pub fn LuaState::pop_frame(Self) -> CallFrame raise StateError
 pub fn LuaState::push(Self, @value.TValue) -> Unit
+pub fn LuaState::push_frame(Self, @value.FunctionValue, Int, Int, Int) -> Unit
 pub fn LuaState::set(Self, Int, @value.TValue) -> Unit raise StateError
+pub fn LuaState::set_compiler(Self, (String) -> @value.TValue raise StateError) -> Unit
 pub fn LuaState::set_global(Self, String, @value.TValue) -> Unit
 pub fn LuaState::stack_size(Self) -> Int
+pub fn LuaState::update_pc(Self, Int) -> Unit raise StateError
 pub impl Show for LuaState
 
 // Type aliases
