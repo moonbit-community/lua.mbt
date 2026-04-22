@@ -1,19 +1,42 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "lua/value"
 
+import {
+  "lua/opcodes",
+  "lua/proto",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/ref",
+}
+
 // Values
+pub fn upvalue_close(@ref.Ref[UpvalueCell], TValue) -> Unit
+
+pub fn upvalue_closed(TValue) -> @ref.Ref[UpvalueCell]
+
+pub fn upvalue_open(Int) -> @ref.Ref[UpvalueCell]
 
 // Errors
 pub(all) suberror ValueError {
   TypeMismatch(expected~ : LuaType, actual~ : LuaType)
   InvalidConversion(from~ : LuaType, to~ : LuaType)
   NilValue
-}
-pub impl Eq for ValueError
+} derive(Eq, ToJson, @debug.Debug)
 pub impl Show for ValueError
-pub impl ToJson for ValueError
 
 // Types and methods
+pub struct FunctionValue {
+  code : Array[@opcodes.Instruction]
+  constants : Array[TValue]
+  protos : Array[@proto.Proto[TValue]]
+  upvalues : Array[@ref.Ref[UpvalueCell]]
+  param_count : Int
+  is_vararg : Bool
+} derive(@debug.Debug)
+pub fn FunctionValue::new(Array[@opcodes.Instruction], Array[TValue]) -> Self
+pub fn FunctionValue::new_full(Array[@opcodes.Instruction], Array[TValue], Int, Bool) -> Self
+pub fn FunctionValue::new_with_params(Array[@opcodes.Instruction], Array[TValue], Int) -> Self
+pub fn FunctionValue::new_with_protos(Array[@opcodes.Instruction], Array[TValue], Array[@proto.Proto[TValue]], Array[@ref.Ref[UpvalueCell]], Int, Bool) -> Self
+
 pub(all) enum LuaType {
   Nil
   Boolean
@@ -24,10 +47,13 @@ pub(all) enum LuaType {
   Function
   Userdata
   Thread
-}
-pub impl Eq for LuaType
+} derive(Eq, ToJson, @debug.Debug)
 pub impl Show for LuaType
-pub impl ToJson for LuaType
+
+pub struct NativeFunctionValue {
+  name : String
+} derive(@debug.Debug)
+pub fn NativeFunctionValue::new(String) -> Self
 
 pub enum TValue {
   Nil
@@ -35,29 +61,61 @@ pub enum TValue {
   Integer(Int64)
   Number(Double)
   String(String)
-}
+  Function(FunctionValue)
+  NativeFunction(NativeFunctionValue)
+  Table(Table)
+} derive(@debug.Debug)
 pub fn TValue::boolean(Bool) -> Self
 pub fn TValue::equal(Self, Self) -> Bool
+pub fn TValue::function(FunctionValue) -> Self
 pub fn TValue::integer(Int64) -> Self
 pub fn TValue::is_boolean(Self) -> Bool
 pub fn TValue::is_integer(Self) -> Bool
 pub fn TValue::is_nil(Self) -> Bool
 pub fn TValue::is_number(Self) -> Bool
 pub fn TValue::is_string(Self) -> Bool
+pub fn TValue::is_table(Self) -> Bool
 pub fn TValue::less_equal(Self, Self) -> Bool raise ValueError
 pub fn TValue::less_than(Self, Self) -> Bool raise ValueError
+pub fn TValue::native_function(String) -> Self
 pub fn TValue::nil() -> Self
 pub fn TValue::number(Double) -> Self
 pub fn TValue::string(String) -> Self
+pub fn TValue::table(Table) -> Self
 pub fn TValue::to_boolean(Self) -> Bool
 pub fn TValue::to_integer(Self) -> Int64 raise ValueError
 pub fn TValue::to_number(Self) -> Double raise ValueError
 pub fn TValue::to_string(Self) -> String
 pub fn TValue::type_of(Self) -> LuaType
-pub impl Eq for TValue
-pub impl Show for TValue
+
+pub struct Table {
+  id : Int
+  array : Array[TValue]
+  hash : Map[String, TValue]
+  mut metatable : TValue
+} derive(@debug.Debug)
+pub fn Table::get(Self, TValue) -> TValue
+pub fn Table::get_int(Self, Int) -> TValue
+pub fn Table::get_metatable(Self) -> TValue
+pub fn Table::get_string(Self, String) -> TValue
+pub fn Table::length(Self) -> Int
+pub fn Table::new() -> Self
+pub fn Table::set(Self, TValue, TValue) -> Unit
+pub fn Table::set_int(Self, Int, TValue) -> Unit
+pub fn Table::set_metatable(Self, TValue) -> Unit
+pub fn Table::set_string(Self, String, TValue) -> Unit
+
+pub struct UpvalueCell {
+  mut kind : UpvalueKind
+} derive(@debug.Debug)
+
+pub enum UpvalueKind {
+  Open(Int)
+  Closed(@ref.Ref[TValue])
+} derive(@debug.Debug)
 
 // Type aliases
+pub type Upvalue = @ref.Ref[UpvalueCell]
 
 // Traits
 

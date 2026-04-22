@@ -1,6 +1,10 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "lua/opcodes"
 
+import {
+  "moonbitlang/core/debug",
+}
+
 // Values
 pub fn op_mode(OpCode) -> OpMode
 
@@ -11,7 +15,7 @@ pub fn opcode_to_int(OpCode) -> Int
 // Types and methods
 pub struct Instruction {
   bits : UInt
-}
+} derive(Eq, @debug.Debug)
 pub fn Instruction::abc(OpCode, Int, Int, Int, Bool) -> Self
 pub fn Instruction::abx(OpCode, Int, Int) -> Self
 pub fn Instruction::asbx(OpCode, Int, Int) -> Self
@@ -26,8 +30,6 @@ pub fn Instruction::get_opcode(Self) -> OpCode
 pub fn Instruction::get_sbx(Self) -> Int
 pub fn Instruction::get_sj(Self) -> Int
 pub fn Instruction::sj(OpCode, Int) -> Self
-pub impl Eq for Instruction
-pub impl Show for Instruction
 
 pub(all) enum OpCode {
   Move
@@ -40,9 +42,12 @@ pub(all) enum OpCode {
   Sub
   Mul
   Div
+  Idiv
   Mod
   Pow
   Unm
+  Concat
+  Len
   BNot
   BAnd
   BOr
@@ -53,19 +58,21 @@ pub(all) enum OpCode {
   Lt
   Le
   Not
+  Test
   Jmp
   Return
   Call
   NewTable
   GetTable
   SetTable
+  SetList
   Closure
   GetUpval
   SetUpval
-}
-pub impl Eq for OpCode
-pub impl Show for OpCode
-pub impl ToJson for OpCode
+  GetGlobal
+  SetGlobal
+  Vararg
+} derive(Eq, ToJson, @debug.Debug)
 
 pub(all) enum OpMode {
   ABC
@@ -74,10 +81,7 @@ pub(all) enum OpMode {
   AsBx
   Ax
   SJ
-}
-pub impl Eq for OpMode
-pub impl Show for OpMode
-pub impl ToJson for OpMode
+} derive(Eq, ToJson, @debug.Debug)
 
 // Type aliases
 

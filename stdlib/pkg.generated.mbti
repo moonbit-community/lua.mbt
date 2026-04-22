@@ -1,10 +1,11 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "lua/stdlib"
 
-import(
-  "lua/state"
-  "lua/value"
-)
+import {
+  "lua/state",
+  "lua/value",
+  "moonbitlang/core/debug",
+}
 
 // Values
 pub fn assert_(@value.TValue, message? : String) -> @value.TValue raise StdlibError
@@ -13,7 +14,19 @@ pub fn math_abs(@value.TValue) -> @value.TValue raise StdlibError
 
 pub fn math_ceil(@value.TValue) -> @value.TValue raise StdlibError
 
+pub fn math_cos(@value.TValue) -> @value.TValue raise StdlibError
+
 pub fn math_floor(@value.TValue) -> @value.TValue raise StdlibError
+
+pub fn math_log(@value.TValue, base? : @value.TValue) -> @value.TValue raise StdlibError
+
+pub fn math_max(Array[@value.TValue]) -> @value.TValue raise StdlibError
+
+pub fn math_min(Array[@value.TValue]) -> @value.TValue raise StdlibError
+
+pub fn math_random(m? : @value.TValue, n? : @value.TValue, Int) -> (@value.TValue, Int) raise StdlibError
+
+pub fn math_sin(@value.TValue) -> @value.TValue raise StdlibError
 
 pub fn math_sqrt(@value.TValue) -> @value.TValue raise StdlibError
 
@@ -21,9 +34,19 @@ pub fn print(Array[@value.TValue]) -> Unit
 
 pub fn register_stdlib(@state.LuaState) -> Unit
 
+pub fn string_find(@value.TValue, @value.TValue, init? : Int) -> (Int, Int) raise StdlibError
+
+pub fn string_format(@value.TValue, Array[@value.TValue]) -> String raise StdlibError
+
+pub fn string_gsub(@value.TValue, @value.TValue, @value.TValue) -> (String, Int) raise StdlibError
+
 pub fn string_len(@value.TValue) -> Int raise StdlibError
 
 pub fn string_lower(@value.TValue) -> String raise StdlibError
+
+pub fn string_rep(@value.TValue, Int) -> String raise StdlibError
+
+pub fn string_reverse(@value.TValue) -> String raise StdlibError
 
 pub fn string_sub(@value.TValue, Int, j? : Int) -> String raise StdlibError
 
@@ -39,10 +62,8 @@ pub fn type_(@value.TValue) -> String
 pub(all) suberror StdlibError {
   InvalidArgument(func~ : String, arg~ : Int, message~ : String)
   TypeMismatch(func~ : String, expected~ : String, actual~ : String)
-}
-pub impl Eq for StdlibError
+} derive(Eq, ToJson, @debug.Debug)
 pub impl Show for StdlibError
-pub impl ToJson for StdlibError
 
 // Types and methods
 

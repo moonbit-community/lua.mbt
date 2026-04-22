@@ -1,9 +1,10 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "lua/parse"
 
-import(
-  "lua/lex"
-)
+import {
+  "lua/lex",
+  "moonbitlang/core/debug",
+}
 
 // Values
 
@@ -12,10 +13,7 @@ pub(all) suberror ParseError {
   UnexpectedToken(expected~ : String, actual~ : String, line~ : Int)
   UnexpectedEof(line~ : Int)
   InvalidSyntax(message~ : String, line~ : Int)
-}
-pub impl Eq for ParseError
-pub impl Show for ParseError
-pub impl ToJson for ParseError
+} derive(Eq, ToJson, @debug.Debug)
 
 // Types and methods
 pub(all) enum Expr {
@@ -31,8 +29,15 @@ pub(all) enum Expr {
   Sub(Expr, Expr)
   Mul(Expr, Expr)
   Div(Expr, Expr)
+  Idiv(Expr, Expr)
   Mod(Expr, Expr)
   Pow(Expr, Expr)
+  BAnd(Expr, Expr)
+  BOr(Expr, Expr)
+  BXor(Expr, Expr)
+  BNot(Expr)
+  Shl(Expr, Expr)
+  Shr(Expr, Expr)
   Eq(Expr, Expr)
   Ne(Expr, Expr)
   Lt(Expr, Expr)
@@ -42,30 +47,29 @@ pub(all) enum Expr {
   And(Expr, Expr)
   Or(Expr, Expr)
   Not(Expr)
+  Neg(Expr)
   Concat(Expr, Expr)
   Len(Expr)
   Call(Expr, Array[Expr])
+  MethodCall(Expr, String, Array[Expr])
   TableConstructor(Array[(Expr?, Expr)])
-  Function(Array[String], Bool, Expr)
-}
-pub impl Eq for Expr
-pub impl Show for Expr
-pub impl ToJson for Expr
+  Function(Array[String], Bool, Stmt)
+} derive(Eq, ToJson, @debug.Debug)
 
 pub struct Parser {
   lexer : @lex.Lexer
-}
+} derive(@debug.Debug)
 pub fn Parser::new(@lex.Lexer) -> Self
 pub fn Parser::parse_chunk(Self) -> Stmt raise ParseError
 pub fn Parser::parse_expr(Self) -> Expr raise ParseError
 pub fn Parser::parse_stmt(Self) -> Stmt raise ParseError
-pub impl Show for Parser
 
 pub(all) enum Stmt {
   Block(Array[Stmt])
   Assign(Array[Expr], Array[Expr])
   LocalDecl(Array[String], Array[Expr])
   FunctionCall(Expr, Array[Expr])
+  MethodCall(Expr, String, Array[Expr])
   Return(Array[Expr])
   Break
   If(Expr, Stmt, Stmt?)
@@ -75,10 +79,9 @@ pub(all) enum Stmt {
   ForIn(Array[String], Array[Expr], Stmt)
   FunctionDef(String, Array[String], Bool, Stmt)
   LocalFunctionDef(String, Array[String], Bool, Stmt)
-}
-pub impl Eq for Stmt
-pub impl Show for Stmt
-pub impl ToJson for Stmt
+  Goto(String)
+  Label(String)
+} derive(Eq, ToJson, @debug.Debug)
 
 // Type aliases
 

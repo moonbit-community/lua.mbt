@@ -1,0 +1,40 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lua/proto"
+
+import {
+  "lua/opcodes",
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub struct Proto[T] {
+  code : Array[@opcodes.Instruction]
+  constants : Array[T]
+  protos : Array[Proto[T]]
+  upvalue_count : Int
+  upvalue_descs : Array[UpvalueDesc]
+  param_count : Int
+  is_vararg : Bool
+} derive(@debug.Debug)
+pub fn[T] Proto::code(Self[T]) -> Array[@opcodes.Instruction]
+pub fn[T] Proto::constant(Self[T], Int) -> T
+pub fn[T] Proto::constants(Self[T]) -> Array[T]
+pub fn[T] Proto::new(Array[@opcodes.Instruction], Array[T], Array[Self[T]], Int, Bool) -> Self[T]
+pub fn[T] Proto::new_with_upvalues(Array[@opcodes.Instruction], Array[T], Array[Self[T]], Int, Array[UpvalueDesc], Int, Bool) -> Self[T]
+pub fn[T] Proto::proto(Self[T], Int) -> Self[T]
+
+pub struct UpvalueDesc {
+  in_stack : Bool
+  index : Int
+  name : String
+} derive(@debug.Debug)
+pub fn UpvalueDesc::new(Bool, Int, String) -> Self
+
+// Type aliases
+
+// Traits
+

@@ -1,6 +1,10 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "lua/lex"
 
+import {
+  "moonbitlang/core/debug",
+}
+
 // Values
 
 // Errors
@@ -9,10 +13,9 @@ pub(all) suberror LexError {
   UnterminatedString(pos~ : Int)
   InvalidNumber(pos~ : Int, text~ : String)
   InvalidEscape(pos~ : Int, char~ : Char)
-}
-pub impl Eq for LexError
-pub impl Show for LexError
-pub impl ToJson for LexError
+  InvalidLongString(pos~ : Int)
+  UnterminatedLongString(pos~ : Int)
+} derive(Eq, ToJson, @debug.Debug)
 
 // Types and methods
 pub struct Lexer {
@@ -21,24 +24,20 @@ pub struct Lexer {
   mut line : Int
   mut column : Int
   mut peek : Token?
-}
+} derive(@debug.Debug)
 pub fn Lexer::current_column(Self) -> Int
 pub fn Lexer::current_line(Self) -> Int
 pub fn Lexer::is_eof(Self) -> Bool
 pub fn Lexer::new(String) -> Self
 pub fn Lexer::next_token(Self) -> Token raise LexError
 pub fn Lexer::peek_token(Self) -> Token raise LexError
-pub impl Show for Lexer
 
 pub(all) struct Token {
   type_ : TokenType
   lexeme : String
   line : Int
   column : Int
-}
-pub impl Eq for Token
-pub impl Show for Token
-pub impl ToJson for Token
+} derive(Eq, ToJson, @debug.Debug)
 
 pub(all) enum TokenType {
   TkNumber
@@ -70,6 +69,7 @@ pub(all) enum TokenType {
   TkMinus
   TkMul
   TkDiv
+  TkFloorDiv
   TkMod
   TkPow
   TkLen
@@ -95,13 +95,11 @@ pub(all) enum TokenType {
   TkRbracket
   TkSemicolon
   TkColon
+  TkDoubleColon
   TkComma
   TkDot
   TkEof
-}
-pub impl Eq for TokenType
-pub impl Show for TokenType
-pub impl ToJson for TokenType
+} derive(Eq, ToJson, @debug.Debug)
 
 // Type aliases
 
