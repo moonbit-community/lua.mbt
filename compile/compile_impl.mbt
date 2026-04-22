@@ -37,11 +37,7 @@ fn split_by_dots(s : String) -> Array[String] {
   for i = 0; i < s.length(); i = i + 1 {
     if s[i].to_int() == '.'.to_int() {
       if i > start {
-        let part = try {
-          s[start:i].to_string()
-        } catch {
-          _ => ""
-        }
+        let part = s[start:i].to_string()
         if part.length() > 0 {
           parts.push(part)
         }
@@ -51,11 +47,7 @@ fn split_by_dots(s : String) -> Array[String] {
   }
   // Add the last part
   if start < s.length() {
-    let part = try {
-      s[start:].to_string()
-    } catch {
-      _ => ""
-    }
+    let part = s[start:].to_string()
     if part.length() > 0 {
       parts.push(part)
     }
@@ -67,11 +59,7 @@ fn split_by_dots(s : String) -> Array[String] {
 /// Helper: Extract substring using string slice notation
 fn get_substring(s : String, start : Int, end : Int) -> String {
   // MoonBit supports string slicing with [start:end]
-  let slice_result = try {
-    s[start:end]
-  } catch {
-    _ => s[:]  // Return whole string on error
-  }
+  let slice_result = s[start:end]
   slice_result.to_string()
 }
 

@@ -23,9 +23,7 @@ pub fn execute(state : @state.LuaState, proto : @proto.Proto[@value.TValue]) -> 
   }
 
   // Push initial call frame
-  state.push_frame(func, base, 0, 0) catch {
-    _ => raise VMError::RuntimeError(message="Failed to push initial frame")
-  }
+  state.push_frame(func, base, 0, 0)
 
   // Main execution loop - continue while there are active frames
   while state.call_depth() > 0 {
@@ -3058,9 +3056,7 @@ fn call_bytecode_function(
   }
 
   // Push new call frame
-  state.push_frame(func, new_base, 0, arg_count) catch {
-    _ => raise VMError::RuntimeError(message="Failed to push metamethod call frame")
-  }
+  state.push_frame(func, new_base, 0, arg_count)
 
   // Execute instructions until the function returns
   // This is a mini-execution loop similar to the main execute() function
@@ -3220,9 +3216,7 @@ fn execute_call(
       }
 
       // Push new call frame
-      state.push_frame(func, new_base, c, arg_count) catch {
-        _ => raise VMError::RuntimeError(message="Failed to push call frame")
-      }
+      state.push_frame(func, new_base, c, arg_count)
       ExecutionResult::Call
     }
     // Native function - call directly
