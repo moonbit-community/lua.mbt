@@ -11,9 +11,10 @@ pub(all) suberror StateError {
   GlobalNotFound(name~ : String)
   CallStackUnderflow
   NoActiveFrame
-  RuntimeError(message~ : String)  // For dynamic compilation errors
+  RuntimeError(message~ : String) // For dynamic compilation errors
 } derive(Eq, Debug, ToJson)
 
+///|
 pub impl Show for StateError with output(self, logger) {
   logger.write_string(@debug.to_string(self))
 }
@@ -86,10 +87,7 @@ pub fn LuaState::set_global(
 ///|
 /// Get a global variable
 #declaration_only
-pub fn LuaState::get_global(
-  self : LuaState,
-  name : String,
-) -> @value.TValue {
+pub fn LuaState::get_global(self : LuaState, name : String) -> @value.TValue {
   ...
 }
 

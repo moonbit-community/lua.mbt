@@ -123,7 +123,10 @@ fn Compiler::add_constant(
 
 ///|
 /// Add a nested proto to the proto pool
-fn Compiler::add_proto(self : Compiler, proto : @proto.Proto[@value.TValue]) -> Int {
+fn Compiler::add_proto(
+  self : Compiler,
+  proto : @proto.Proto[@value.TValue],
+) -> Int {
   let index = self.protos.length()
   self.protos.push(proto)
   index
@@ -152,7 +155,11 @@ fn Compiler::add_local(
   if reg > 255 {
     raise CompileError::TooManyLocals(line=0)
   }
-  self.locals.push(LocalVar::{ name, register: reg, scope_depth: self.scope_depth })
+  self.locals.push(LocalVar::{
+    name,
+    register: reg,
+    scope_depth: self.scope_depth,
+  })
   reg
 }
 
@@ -169,7 +176,7 @@ fn Compiler::add_upvalue(
   for i = 0; i < self.upvalues.length(); i = i + 1 {
     let uv = self.upvalues[i]
     if uv.in_stack == in_stack && uv.index == index {
-      return i  // Reuse existing upvalue
+      return i // Reuse existing upvalue
     }
   }
 
@@ -189,10 +196,9 @@ fn resolve_upvalue(
 ) -> Int? {
   // First, try to find as a local in the parent
   match parent.find_local(name) {
-    Some(local_reg) => {
+    Some(local_reg) =>
       // Found in parent's locals - add as upvalue pointing to stack
       return Some(compiler.add_upvalue(true, local_reg, name))
-    }
     None => ()
   }
 
@@ -207,16 +213,14 @@ fn resolve_upvalue(
   // Not found in parent's upvalues either
   // Try to recursively resolve in parent's parent
   match parent.parent {
-    Some(grandparent) => {
+    Some(grandparent) =>
       // Recursively resolve in grandparent
       match resolve_upvalue(parent, grandparent, name) {
-        Some(parent_upvalue_idx) => {
+        Some(parent_upvalue_idx) =>
           // Parent now has this as an upvalue, add it to current compiler
           return Some(compiler.add_upvalue(false, parent_upvalue_idx, name))
-        }
         None => ()
       }
-    }
     None => ()
   }
 
@@ -235,7 +239,7 @@ fn compile_function_body(
 ) -> (@proto.Proto[@value.TValue], Int) raise CompileError {
   let func_compiler = Compiler::new()
   func_compiler.is_vararg = is_vararg
-  func_compiler.parent = parent  // Set parent for upvalue resolution
+  func_compiler.parent = parent // Set parent for upvalue resolution
 
   // Register parameters as locals
   for param in params {
@@ -339,11 +343,7 @@ fn Compiler::add_break(self : Compiler) -> Unit raise CompileError {
 
 ///|
 /// Patch a jump instruction to jump to specific target
-fn Compiler::patch_jump_to(
-  self : Compiler,
-  pos : Int,
-  target : Int,
-) -> Unit {
+fn Compiler::patch_jump_to(self : Compiler, pos : Int, target : Int) -> Unit {
   let offset = target - pos - 1
   self.code[pos] = @opcodes.Instruction::asbx(@opcodes.OpCode::Jmp, 0, offset)
 }
@@ -367,7 +367,8 @@ pub fn Compiler::compile_stmt(
         // Find highest register used by locals at current scope
         let mut max_local_reg = -1
         for local_var in self.locals {
-          if local_var.scope_depth == self.scope_depth && local_var.register > max_local_reg {
+          if local_var.scope_depth == self.scope_depth &&
+            local_var.register > max_local_reg {
             max_local_reg = local_var.register
           }
         }
@@ -469,7 +470,7 @@ pub fn Compiler::compile_stmt(
             if local_regs.length() > 0 {
               self.next_register = local_regs[local_regs.length() - 1] + 1
             }
-            return  // Done with this special case
+            return // Done with this special case
           }
           _ => () // Fall through to normal case
         }
@@ -565,7 +566,7 @@ pub fn Compiler::compile_stmt(
         }
 
         match lval {
-          @parse.Expr::Name(name) => {
+          @parse.Expr::Name(name) =>
             match self.find_local(name) {
               Some(target_reg) =>
                 if value_reg != target_reg {
@@ -579,19 +580,28 @@ pub fn Compiler::compile_stmt(
                     ),
                   )
                 }
-              None => {
+              None =>
                 // Not a local, try upvalue resolution
                 match self.parent {
-                  Some(parent_compiler) => {
+                  Some(parent_compiler) =>
                     match resolve_upvalue(self, parent_compiler, name) {
-                      Some(upvalue_idx) => {
+                      Some(upvalue_idx) =>
                         // Found as upvalue - emit SetUpval instruction
                         // SetUpval: UpValue[B] := R[A], so A=value_reg, B=upvalue_idx
-                        self.emit(@opcodes.Instruction::abc(@opcodes.OpCode::SetUpval, value_reg, upvalue_idx, 0, false))
-                      }
+                        self.emit(
+                          @opcodes.Instruction::abc(
+                            @opcodes.OpCode::SetUpval,
+                            value_reg,
+                            upvalue_idx,
+                            0,
+                            false,
+                          ),
+                        )
                       None => {
                         // Not found in upvalues either, treat as global assignment
-                        let name_const_idx = self.add_constant(@value.TValue::string(name))
+                        let name_const_idx = self.add_constant(
+                          @value.TValue::string(name),
+                        )
                         self.emit(
                           @opcodes.Instruction::abx(
                             @opcodes.OpCode::SetGlobal,
@@ -601,10 +611,11 @@ pub fn Compiler::compile_stmt(
                         )
                       }
                     }
-                  }
                   None => {
                     // No parent, must be global assignment
-                    let name_const_idx = self.add_constant(@value.TValue::string(name))
+                    let name_const_idx = self.add_constant(
+                      @value.TValue::string(name),
+                    )
                     self.emit(
                       @opcodes.Instruction::abx(
                         @opcodes.OpCode::SetGlobal,
@@ -614,9 +625,7 @@ pub fn Compiler::compile_stmt(
                     )
                   }
                 }
-              }
             }
-          }
           @parse.Expr::Index(table_expr, index_expr) => {
             // Table index assignment: table[index] = value
             let table_reg = self.compile_expr(table_expr)
@@ -637,7 +646,13 @@ pub fn Compiler::compile_stmt(
 
             let field_reg = self.alloc_register()
             let const_idx = self.add_constant(@value.TValue::string(field_name))
-            self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, field_reg, const_idx))
+            self.emit(
+              @opcodes.Instruction::abx(
+                @opcodes.OpCode::LoadK,
+                field_reg,
+                const_idx,
+              ),
+            )
 
             self.emit(
               @opcodes.Instruction::abc(
@@ -662,9 +677,9 @@ pub fn Compiler::compile_stmt(
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Test,
-          cond_reg,  // A = condition register
-          0,  // B unused
-          0,  // C unused
+          cond_reg, // A = condition register
+          0, // B unused
+          0, // C unused
           false, // k=false: skip jump if truthy
         ),
       )
@@ -698,9 +713,9 @@ pub fn Compiler::compile_stmt(
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Test,
-          cond_reg,  // A = condition register
-          0,  // B unused
-          0,  // C unused
+          cond_reg, // A = condition register
+          0, // B unused
+          0, // C unused
           false, // k=false: skip exit jump if truthy, i.e., continue looping
         ),
       )
@@ -732,7 +747,7 @@ pub fn Compiler::compile_stmt(
       // If body is a Block, compile its statements directly WITHOUT entering a new scope
       // (since we already entered one above that includes the condition)
       match body {
-        @parse.Stmt::Block(stmts) => {
+        @parse.Stmt::Block(stmts) =>
           // Compile block statements directly, without Block's usual scope management
           for s in stmts {
             let baseline = self.next_register
@@ -740,7 +755,8 @@ pub fn Compiler::compile_stmt(
             // Restore baseline after statement (but keep any new locals)
             let mut max_local_reg = -1
             for local_var in self.locals {
-              if local_var.scope_depth == self.scope_depth && local_var.register > max_local_reg {
+              if local_var.scope_depth == self.scope_depth &&
+                local_var.register > max_local_reg {
                 max_local_reg = local_var.register
               }
             }
@@ -751,11 +767,9 @@ pub fn Compiler::compile_stmt(
             }
             self.next_register = target_reg
           }
-        }
-        _ => {
+        _ =>
           // For non-block statements, compile normally
           self.compile_stmt(body)
-        }
       }
 
       // Compile condition (can now see locals from body)
@@ -767,9 +781,9 @@ pub fn Compiler::compile_stmt(
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Test,
-          cond_reg,  // A = condition register
-          0,  // B unused
-          0,  // C unused
+          cond_reg, // A = condition register
+          0, // B unused
+          0, // C unused
           false, // k=false: skip loop-back jump if condition is truthy (exit loop)
         ),
       )
@@ -792,7 +806,9 @@ pub fn Compiler::compile_stmt(
           // Default step is 1
           let reg = self.alloc_register()
           let const_idx = self.add_constant(@value.TValue::integer(1L))
-          self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, reg, const_idx))
+          self.emit(
+            @opcodes.Instruction::abx(@opcodes.OpCode::LoadK, reg, const_idx),
+          )
           reg
         }
       }
@@ -846,7 +862,9 @@ pub fn Compiler::compile_stmt(
       // Compare step with 0
       let zero_reg = self.alloc_register()
       let zero_const = self.add_constant(@value.TValue::integer(0L))
-      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, zero_reg, zero_const))
+      self.emit(
+        @opcodes.Instruction::abx(@opcodes.OpCode::LoadK, zero_reg, zero_const),
+      )
 
       // Check if step < 0 (for negative step / countdown)
       self.emit(
@@ -930,7 +948,12 @@ pub fn Compiler::compile_stmt(
     }
     @parse.Stmt::FunctionDef(name, params, is_vararg, body) => {
       // Compile function body with parent context for closure support
-      let (proto, upvalue_count) = compile_function_body(params, is_vararg, body, Some(self))
+      let (proto, upvalue_count) = compile_function_body(
+        params,
+        is_vararg,
+        body,
+        Some(self),
+      )
 
       // Load function into a temporary register
       let temp_reg = self.alloc_register()
@@ -938,19 +961,33 @@ pub fn Compiler::compile_stmt(
       if upvalue_count > 0 {
         // Function has upvalues - emit Closure opcode
         let proto_idx = self.add_proto(proto)
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::Closure, temp_reg, proto_idx))
+        self.emit(
+          @opcodes.Instruction::abx(
+            @opcodes.OpCode::Closure,
+            temp_reg,
+            proto_idx,
+          ),
+        )
       } else {
         // No upvalues - use LoadK with function constant
         let func_value = @value.FunctionValue::new_with_protos(
           proto.code(),
           proto.constants,
           proto.protos,
-          [],  // No upvalues
+          [], // No upvalues
           params.length(),
           is_vararg,
         )
-        let func_const_idx = self.add_constant(@value.TValue::function(func_value))
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, temp_reg, func_const_idx))
+        let func_const_idx = self.add_constant(
+          @value.TValue::function(func_value),
+        )
+        self.emit(
+          @opcodes.Instruction::abx(
+            @opcodes.OpCode::LoadK,
+            temp_reg,
+            func_const_idx,
+          ),
+        )
       }
 
       // Check if the name contains a dot (table field assignment)
@@ -960,16 +997,30 @@ pub fn Compiler::compile_stmt(
         if parts.length() < 2 {
           // Shouldn't happen, but fallback to global
           let name_const_idx = self.add_constant(@value.TValue::string(name))
-          self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::SetGlobal, temp_reg, name_const_idx))
+          self.emit(
+            @opcodes.Instruction::abx(
+              @opcodes.OpCode::SetGlobal,
+              temp_reg,
+              name_const_idx,
+            ),
+          )
         } else {
           // Get the base table (first part)
           let mut table_reg = match self.find_local(parts[0]) {
-            Some(local_reg) => local_reg  // Base is a local variable
+            Some(local_reg) => local_reg // Base is a local variable
             None => {
               // Base is a global
               let reg = self.alloc_register()
-              let base_const = self.add_constant(@value.TValue::string(parts[0]))
-              self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::GetGlobal, reg, base_const))
+              let base_const = self.add_constant(
+                @value.TValue::string(parts[0]),
+              )
+              self.emit(
+                @opcodes.Instruction::abx(
+                  @opcodes.OpCode::GetGlobal,
+                  reg,
+                  base_const,
+                ),
+              )
               reg
             }
           }
@@ -978,7 +1029,13 @@ pub fn Compiler::compile_stmt(
           for i = 1; i < parts.length() - 1; i = i + 1 {
             let field_reg = self.alloc_register()
             let field_const = self.add_constant(@value.TValue::string(parts[i]))
-            self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, field_reg, field_const))
+            self.emit(
+              @opcodes.Instruction::abx(
+                @opcodes.OpCode::LoadK,
+                field_reg,
+                field_const,
+              ),
+            )
 
             let next_table_reg = self.alloc_register()
             self.emit(
@@ -996,8 +1053,16 @@ pub fn Compiler::compile_stmt(
           // Set the final field (last part)
           let final_field = parts[parts.length() - 1]
           let field_reg = self.alloc_register()
-          let field_const = self.add_constant(@value.TValue::string(final_field))
-          self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, field_reg, field_const))
+          let field_const = self.add_constant(
+            @value.TValue::string(final_field),
+          )
+          self.emit(
+            @opcodes.Instruction::abx(
+              @opcodes.OpCode::LoadK,
+              field_reg,
+              field_const,
+            ),
+          )
 
           self.emit(
             @opcodes.Instruction::abc(
@@ -1012,7 +1077,13 @@ pub fn Compiler::compile_stmt(
       } else {
         // Simple global function
         let name_const_idx = self.add_constant(@value.TValue::string(name))
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::SetGlobal, temp_reg, name_const_idx))
+        self.emit(
+          @opcodes.Instruction::abx(
+            @opcodes.OpCode::SetGlobal,
+            temp_reg,
+            name_const_idx,
+          ),
+        )
       }
     }
     @parse.Stmt::LocalFunctionDef(name, params, is_vararg, body) => {
@@ -1020,24 +1091,37 @@ pub fn Compiler::compile_stmt(
       let func_reg = self.add_local(name)
 
       // Compile function body with parent context for closure support
-      let (proto, upvalue_count) = compile_function_body(params, is_vararg, body, Some(self))
+      let (proto, upvalue_count) = compile_function_body(
+        params,
+        is_vararg,
+        body,
+        Some(self),
+      )
 
       if upvalue_count > 0 {
         // Function has upvalues - emit Closure opcode
         let proto_idx = self.add_proto(proto)
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::Closure, func_reg, proto_idx))
+        self.emit(
+          @opcodes.Instruction::abx(
+            @opcodes.OpCode::Closure,
+            func_reg,
+            proto_idx,
+          ),
+        )
       } else {
         // No upvalues - use LoadK with function constant
         let func_value = @value.FunctionValue::new_with_protos(
           proto.code(),
           proto.constants,
           proto.protos,
-          [],  // No upvalues
+          [], // No upvalues
           params.length(),
           is_vararg,
         )
         let const_idx = self.add_constant(@value.TValue::function(func_value))
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, const_idx))
+        self.emit(
+          @opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, const_idx),
+        )
       }
     }
     @parse.Stmt::FunctionCall(func_expr, args) => {
@@ -1083,12 +1167,12 @@ pub fn Compiler::compile_stmt(
             @opcodes.OpCode::Vararg,
             vararg_start,
             0,
-            0,  // C=0 means copy all available varargs
+            0, // C=0 means copy all available varargs
             false,
           ),
         )
 
-        0  // B=0 means variable arguments for CALL
+        0 // B=0 means variable arguments for CALL
       } else {
         // No varargs - compile all arguments normally
         for i = 0; i < args.length(); i = i + 1 {
@@ -1109,7 +1193,7 @@ pub fn Compiler::compile_stmt(
             }
           }
         }
-        args.length() + 1  // B = arg_count + 1 (Lua convention)
+        args.length() + 1 // B = arg_count + 1 (Lua convention)
       }
 
       // Emit CALL instruction
@@ -1136,7 +1220,13 @@ pub fn Compiler::compile_stmt(
       // Load method name into a register first
       let method_name_reg = self.alloc_register()
       let method_const = self.add_constant(@value.TValue::string(method_name))
-      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, method_name_reg, method_const))
+      self.emit(
+        @opcodes.Instruction::abx(
+          @opcodes.OpCode::LoadK,
+          method_name_reg,
+          method_const,
+        ),
+      )
 
       // Load method from object: method_reg = obj[method_name]
       self.emit(
@@ -1274,8 +1364,8 @@ pub fn Compiler::compile_stmt(
 
       // Create hidden local variables for iterator state FIRST
       // These need to be locals to survive across loop iterations
-      let f_reg = self.add_local("(for iterator)")  // iterator function
-      let s_reg = self.add_local("(for state)")     // invariant state
+      let f_reg = self.add_local("(for iterator)") // iterator function
+      let s_reg = self.add_local("(for state)") // invariant state
       let var_reg = self.add_local("(for control)") // control variable
 
       // Evaluate iterator expression (typically pairs(t) or ipairs(t))
@@ -1363,16 +1453,34 @@ pub fn Compiler::compile_stmt(
             )
             // Initialize state and control to nil
             let nil_const = self.add_constant(@value.TValue::nil())
-            self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, s_reg, nil_const))
-            self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, var_reg, nil_const))
+            self.emit(
+              @opcodes.Instruction::abx(
+                @opcodes.OpCode::LoadK,
+                s_reg,
+                nil_const,
+              ),
+            )
+            self.emit(
+              @opcodes.Instruction::abx(
+                @opcodes.OpCode::LoadK,
+                var_reg,
+                nil_const,
+              ),
+            )
           }
         }
       } else {
         // No iterator expression - shouldn't happen, but handle it
         let nil_const = self.add_constant(@value.TValue::nil())
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, f_reg, nil_const))
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, s_reg, nil_const))
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, var_reg, nil_const))
+        self.emit(
+          @opcodes.Instruction::abx(@opcodes.OpCode::LoadK, f_reg, nil_const),
+        )
+        self.emit(
+          @opcodes.Instruction::abx(@opcodes.OpCode::LoadK, s_reg, nil_const),
+        )
+        self.emit(
+          @opcodes.Instruction::abx(@opcodes.OpCode::LoadK, var_reg, nil_const),
+        )
       }
 
       // Create loop variables as locals
@@ -1451,7 +1559,9 @@ pub fn Compiler::compile_stmt(
         // Load nil for comparison
         let nil_reg = self.alloc_register()
         let nil_const = self.add_constant(@value.TValue::nil())
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, nil_reg, nil_const))
+        self.emit(
+          @opcodes.Instruction::abx(@opcodes.OpCode::LoadK, nil_reg, nil_const),
+        )
 
         // Compare: if first_var == nil then exit
         self.emit(
@@ -1511,7 +1621,7 @@ pub fn Compiler::compile_stmt(
 fn Compiler::compile_expr_multires(
   self : Compiler,
   expr : @parse.Expr,
-  target_reg : Int
+  target_reg : Int,
 ) -> Int raise CompileError {
   match expr {
     @parse.Expr::Call(func_expr, args) => {
@@ -1559,8 +1669,8 @@ fn Compiler::compile_expr_multires(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Call,
           target_reg,
-          args.length() + 1,  // B = arg_count + 1
-          0,  // C=0 means return all values
+          args.length() + 1, // B = arg_count + 1
+          0, // C=0 means return all values
           false,
         ),
       )
@@ -1644,8 +1754,8 @@ fn Compiler::compile_expr_multires(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Call,
           method_reg,
-          args.length() + 2,  // B = args + self + 1
-          0,  // C=0 means return all values
+          args.length() + 2, // B = args + self + 1
+          0, // C=0 means return all values
           false,
         ),
       )
@@ -1656,10 +1766,9 @@ fn Compiler::compile_expr_multires(
       // Let me reconsider... Actually the calling convention is that results go where the function is
       method_reg
     }
-    _ => {
+    _ =>
       // Not a function/method call, just compile normally
       self.compile_expr(expr)
-    }
   }
 }
 
@@ -1706,35 +1815,57 @@ pub fn Compiler::compile_expr(
     @parse.Expr::Name(name) =>
       match self.find_local(name) {
         Some(local_reg) => local_reg
-        None => {
+        None =>
           // Not a local, try upvalue resolution
           match self.parent {
-            Some(parent_compiler) => {
+            Some(parent_compiler) =>
               match resolve_upvalue(self, parent_compiler, name) {
                 Some(upvalue_idx) => {
                   // Found as upvalue - emit GetUpval instruction
                   let reg = self.alloc_register()
-                  self.emit(@opcodes.Instruction::abc(@opcodes.OpCode::GetUpval, reg, upvalue_idx, 0, false))
+                  self.emit(
+                    @opcodes.Instruction::abc(
+                      @opcodes.OpCode::GetUpval,
+                      reg,
+                      upvalue_idx,
+                      0,
+                      false,
+                    ),
+                  )
                   reg
                 }
                 None => {
                   // Not found in upvalues either, treat as global
                   let reg = self.alloc_register()
-                  let name_const_idx = self.add_constant(@value.TValue::string(name))
-                  self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::GetGlobal, reg, name_const_idx))
+                  let name_const_idx = self.add_constant(
+                    @value.TValue::string(name),
+                  )
+                  self.emit(
+                    @opcodes.Instruction::abx(
+                      @opcodes.OpCode::GetGlobal,
+                      reg,
+                      name_const_idx,
+                    ),
+                  )
                   reg
                 }
               }
-            }
             None => {
               // No parent, must be global
               let reg = self.alloc_register()
-              let name_const_idx = self.add_constant(@value.TValue::string(name))
-              self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::GetGlobal, reg, name_const_idx))
+              let name_const_idx = self.add_constant(
+                @value.TValue::string(name),
+              )
+              self.emit(
+                @opcodes.Instruction::abx(
+                  @opcodes.OpCode::GetGlobal,
+                  reg,
+                  name_const_idx,
+                ),
+              )
               reg
             }
           }
-        }
       }
     @parse.Expr::Add(left, right) => {
       let left_reg = self.compile_expr(left)
@@ -1985,7 +2116,7 @@ pub fn Compiler::compile_expr(
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Eq,
-          0,  // A is unused for comparison instructions
+          0, // A is unused for comparison instructions
           left_reg,
           right_reg,
           false, // k=false: skip next instruction if equal
@@ -2035,7 +2166,7 @@ pub fn Compiler::compile_expr(
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Lt,
-          0,  // A is unused for comparison instructions
+          0, // A is unused for comparison instructions
           left_reg,
           right_reg,
           false, // k=false: skip next instruction if less than
@@ -2085,7 +2216,7 @@ pub fn Compiler::compile_expr(
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Le,
-          0,  // A is unused for comparison instructions
+          0, // A is unused for comparison instructions
           left_reg,
           right_reg,
           false, // k=false: skip next instruction if comparison is true
@@ -2136,7 +2267,7 @@ pub fn Compiler::compile_expr(
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Lt,
-          0,  // A is unused
+          0, // A is unused
           right_reg,
           left_reg,
           false, // k=false: skip next instruction if (b < a)
@@ -2183,7 +2314,7 @@ pub fn Compiler::compile_expr(
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Le,
-          0,  // A is unused
+          0, // A is unused
           right_reg,
           left_reg,
           false, // k=false: skip next instruction if (b <= a)
@@ -2231,10 +2362,10 @@ pub fn Compiler::compile_expr(
       self.emit(
         @opcodes.Instruction::abc(
           @opcodes.OpCode::Eq,
-          0,  // A is unused
+          0, // A is unused
           left_reg,
           right_reg,
-          false,  // k=false: if equal, skip next instruction
+          false, // k=false: if equal, skip next instruction
         ),
       )
 
@@ -2332,21 +2463,25 @@ pub fn Compiler::compile_expr(
                 @opcodes.OpCode::Vararg,
                 vararg_start,
                 0,
-                0,  // C=0 means copy all available varargs
+                0, // C=0 means copy all available varargs
                 false,
               ),
             )
           }
-          @parse.Expr::Call(_, _) | @parse.Expr::MethodCall(_, _, _) => {
+          @parse.Expr::Call(_, _) | @parse.Expr::MethodCall(_, _, _) =>
             // Compile the function/method call with multires (C=0)
             // We need to compile it manually to control the C parameter
-            ignore(self.compile_expr_multires(args[args.length() - 1], func_reg + args.length()))
-            // The multires call will place results starting at the expected position
-          }
-          _ => ()  // Shouldn't happen
+            ignore(
+              self.compile_expr_multires(
+                args[args.length() - 1],
+                func_reg + args.length(),
+              ),
+            )
+          // The multires call will place results starting at the expected position
+          _ => () // Shouldn't happen
         }
 
-        0  // B=0 means variable arguments for CALL
+        0 // B=0 means variable arguments for CALL
       } else {
         // No varargs - compile all arguments normally
         for i = 0; i < args.length(); i = i + 1 {
@@ -2370,7 +2505,7 @@ pub fn Compiler::compile_expr(
             }
           }
         }
-        args.length() + 1  // B = arg_count + 1 (Lua convention)
+        args.length() + 1 // B = arg_count + 1 (Lua convention)
       }
 
       // Emit CALL instruction: function expects 1 return value
@@ -2401,7 +2536,13 @@ pub fn Compiler::compile_expr(
       // Load method name into a register first
       let method_name_reg = self.alloc_register()
       let method_const = self.add_constant(@value.TValue::string(method_name))
-      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, method_name_reg, method_const))
+      self.emit(
+        @opcodes.Instruction::abx(
+          @opcodes.OpCode::LoadK,
+          method_name_reg,
+          method_const,
+        ),
+      )
 
       // Load method from object: method_reg = obj[method_name]
       self.emit(
@@ -2471,7 +2612,15 @@ pub fn Compiler::compile_expr(
     @parse.Expr::TableConstructor(fields) => {
       // Create new table
       let table_reg = self.alloc_register()
-      self.emit(@opcodes.Instruction::abc(@opcodes.OpCode::NewTable, table_reg, 0, 0, false))
+      self.emit(
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::NewTable,
+          table_reg,
+          0,
+          0,
+          false,
+        ),
+      )
 
       // Save register state - we'll free temp registers after filling the table
       let saved_next_register = self.next_register
@@ -2520,7 +2669,7 @@ pub fn Compiler::compile_expr(
               }
             }
           }
-          None => {
+          None =>
             // Array-style: table[index] = value
             // Check if value is varargs
             match value {
@@ -2535,9 +2684,9 @@ pub fn Compiler::compile_expr(
                 self.emit(
                   @opcodes.Instruction::abc(
                     @opcodes.OpCode::Vararg,
-                    table_reg + 1,  // Load starting right after table
+                    table_reg + 1, // Load starting right after table
                     0,
-                    0,  // C=0 means all varargs
+                    0, // C=0 means all varargs
                     false,
                   ),
                 )
@@ -2551,8 +2700,8 @@ pub fn Compiler::compile_expr(
                   @opcodes.Instruction::abc(
                     @opcodes.OpCode::SetList,
                     table_reg,
-                    0,  // B=0: use all values to stack top
-                    array_index - 1,  // C: base index
+                    0, // B=0: use all values to stack top
+                    array_index - 1, // C: base index
                     false,
                   ),
                 )
@@ -2561,8 +2710,16 @@ pub fn Compiler::compile_expr(
               }
               _ => {
                 let index_reg = self.alloc_register()
-                let const_idx = self.add_constant(@value.TValue::integer(array_index.to_int64()))
-                self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, index_reg, const_idx))
+                let const_idx = self.add_constant(
+                  @value.TValue::integer(array_index.to_int64()),
+                )
+                self.emit(
+                  @opcodes.Instruction::abx(
+                    @opcodes.OpCode::LoadK,
+                    index_reg,
+                    const_idx,
+                  ),
+                )
 
                 let value_reg = self.compile_expr(value)
                 self.emit(
@@ -2577,7 +2734,6 @@ pub fn Compiler::compile_expr(
                 array_index = array_index + 1
               }
             }
-          }
         }
       }
 
@@ -2610,7 +2766,9 @@ pub fn Compiler::compile_expr(
 
       let field_reg = self.alloc_register()
       let const_idx = self.add_constant(@value.TValue::string(field_name))
-      self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, field_reg, const_idx))
+      self.emit(
+        @opcodes.Instruction::abx(@opcodes.OpCode::LoadK, field_reg, const_idx),
+      )
 
       let result_reg = self.alloc_register()
       self.emit(
@@ -2656,7 +2814,13 @@ pub fn Compiler::compile_expr(
 
       let false_reg = self.alloc_register()
       self.emit(
-        @opcodes.Instruction::abc(@opcodes.OpCode::LoadFalse, false_reg, 0, 0, false),
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadFalse,
+          false_reg,
+          0,
+          0,
+          false,
+        ),
       )
 
       // EQ: if (NOT left) == false, then left is truthy, skip jump (evaluate right)
@@ -2666,7 +2830,7 @@ pub fn Compiler::compile_expr(
           0,
           not_left_reg,
           false_reg,
-          false,  // k=false: if NOT left is false (left is truthy), skip next instruction
+          false, // k=false: if NOT left is false (left is truthy), skip next instruction
         ),
       )
 
@@ -2720,7 +2884,13 @@ pub fn Compiler::compile_expr(
 
       let false_reg = self.alloc_register()
       self.emit(
-        @opcodes.Instruction::abc(@opcodes.OpCode::LoadFalse, false_reg, 0, 0, false),
+        @opcodes.Instruction::abc(
+          @opcodes.OpCode::LoadFalse,
+          false_reg,
+          0,
+          0,
+          false,
+        ),
       )
 
       // EQ: if (NOT left) == false, then left is truthy, skip evaluation of right
@@ -2730,7 +2900,7 @@ pub fn Compiler::compile_expr(
           0,
           not_left_reg,
           false_reg,
-          true,  // k=true: if NOT equal (NOT left != false, i.e., left is falsy), skip next instruction
+          true, // k=true: if NOT equal (NOT left != false, i.e., left is falsy), skip next instruction
         ),
       )
 
@@ -2799,7 +2969,12 @@ pub fn Compiler::compile_expr(
     }
     @parse.Expr::Function(params, is_vararg, body) => {
       // Compile anonymous function expression with parent context for closure support
-      let (proto, upvalue_count) = compile_function_body(params, is_vararg, body, Some(self))
+      let (proto, upvalue_count) = compile_function_body(
+        params,
+        is_vararg,
+        body,
+        Some(self),
+      )
 
       // Load function into a register
       let func_reg = self.alloc_register()
@@ -2807,19 +2982,33 @@ pub fn Compiler::compile_expr(
       if upvalue_count > 0 {
         // Function has upvalues - emit Closure opcode
         let proto_idx = self.add_proto(proto)
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::Closure, func_reg, proto_idx))
+        self.emit(
+          @opcodes.Instruction::abx(
+            @opcodes.OpCode::Closure,
+            func_reg,
+            proto_idx,
+          ),
+        )
       } else {
         // No upvalues - use LoadK with function constant
         let func_value = @value.FunctionValue::new_with_protos(
           proto.code(),
           proto.constants,
           proto.protos,
-          [],  // No upvalues
+          [], // No upvalues
           params.length(),
           is_vararg,
         )
-        let func_const_idx = self.add_constant(@value.TValue::function(func_value))
-        self.emit(@opcodes.Instruction::abx(@opcodes.OpCode::LoadK, func_reg, func_const_idx))
+        let func_const_idx = self.add_constant(
+          @value.TValue::function(func_value),
+        )
+        self.emit(
+          @opcodes.Instruction::abx(
+            @opcodes.OpCode::LoadK,
+            func_reg,
+            func_const_idx,
+          ),
+        )
       }
 
       func_reg
@@ -2846,7 +3035,7 @@ pub fn Compiler::compile_expr(
           @opcodes.OpCode::Vararg,
           result_reg,
           0,
-          0,  // C=0 means all varargs
+          0, // C=0 means all varargs
           false,
         ),
       )
@@ -2857,7 +3046,11 @@ pub fn Compiler::compile_expr(
 
 ///|
 /// Finalize and get the compiled prototype
-pub fn Compiler::finish(self : Compiler, param_count : Int, is_vararg : Bool) -> @proto.Proto[@value.TValue] {
+pub fn Compiler::finish(
+  self : Compiler,
+  param_count : Int,
+  is_vararg : Bool,
+) -> @proto.Proto[@value.TValue] {
   if self.upvalues.length() > 0 {
     @proto.Proto::new_with_upvalues(
       self.code,
@@ -2869,19 +3062,27 @@ pub fn Compiler::finish(self : Compiler, param_count : Int, is_vararg : Bool) ->
       is_vararg,
     )
   } else {
-    @proto.Proto::new(self.code, self.constants, self.protos, param_count, is_vararg)
+    @proto.Proto::new(
+      self.code,
+      self.constants,
+      self.protos,
+      param_count,
+      is_vararg,
+    )
   }
 }
 
 ///|
 /// Compile a complete Lua chunk to bytecode
-pub fn compile(stmt : @parse.Stmt) -> @proto.Proto[@value.TValue] raise CompileError {
+pub fn compile(
+  stmt : @parse.Stmt,
+) -> @proto.Proto[@value.TValue] raise CompileError {
   let compiler = Compiler::new()
 
   // Handle top-level chunk specially: it's a Block but shouldn't create a scope
   // All explicit do-end blocks will create scopes (even at top level)
   match stmt {
-    @parse.Stmt::Block(stmts) => {
+    @parse.Stmt::Block(stmts) =>
       // Top-level chunk: compile statements without entering a scope
       // This way, top-level locals are at scope_depth=0
       for s in stmts {
@@ -2892,7 +3093,8 @@ pub fn compile(stmt : @parse.Stmt) -> @proto.Proto[@value.TValue] raise CompileE
         // Find highest register used by locals at current scope
         let mut max_local_reg = -1
         for local_var in compiler.locals {
-          if local_var.scope_depth == compiler.scope_depth && local_var.register > max_local_reg {
+          if local_var.scope_depth == compiler.scope_depth &&
+            local_var.register > max_local_reg {
             max_local_reg = local_var.register
           }
         }
@@ -2904,9 +3106,8 @@ pub fn compile(stmt : @parse.Stmt) -> @proto.Proto[@value.TValue] raise CompileE
         }
         compiler.next_register = target_reg
       }
-    }
     _ => compiler.compile_stmt(stmt)
   }
 
-  compiler.finish(0, false)  // Top-level chunk has no parameters
+  compiler.finish(0, false) // Top-level chunk has no parameters
 }

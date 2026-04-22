@@ -225,9 +225,9 @@ pub fn string_sub(
       // Convert Lua 1-based index to 0-based, handle negative indices
       fn normalize_index(idx : Int, len : Int) -> Int {
         if idx < 0 {
-          len + idx + 1  // Negative index counts from end
+          len + idx + 1 // Negative index counts from end
         } else if idx == 0 {
-          1  // Lua treats 0 as 1
+          1 // Lua treats 0 as 1
         } else {
           idx
         }
@@ -240,11 +240,11 @@ pub fn string_sub(
       }
 
       // Clamp to valid range
-      let start_idx = if start < 1 { 0 } else { start - 1 }  // Convert to 0-based
+      let start_idx = if start < 1 { 0 } else { start - 1 } // Convert to 0-based
       let end_idx = if end > len { len } else { end }
 
       if start_idx >= len || end_idx < start {
-        ""  // Empty string if invalid range
+        "" // Empty string if invalid range
       } else {
         // MoonBit string slicing uses 0-based indexing
         let actual_end = end_idx
@@ -273,7 +273,7 @@ pub fn string_upper(s : @value.TValue) -> String raise StdlibError {
       let mut result = ""
       let len = str.length()
       for i = 0; i < len; i = i + 1 {
-        let code = str[i]  // UInt16
+        let code = str[i] // UInt16
         // Convert lowercase a-z (97-122) to uppercase A-Z (65-90)
         if code >= 97 && code <= 122 {
           let upper_code = code - 32
@@ -302,7 +302,7 @@ pub fn string_lower(s : @value.TValue) -> String raise StdlibError {
       let mut result = ""
       let len = str.length()
       for i = 0; i < len; i = i + 1 {
-        let code = str[i]  // UInt16
+        let code = str[i] // UInt16
         // Convert uppercase A-Z (65-90) to lowercase a-z (97-122)
         if code >= 65 && code <= 90 {
           let lower_code = code + 32
@@ -379,39 +379,50 @@ fn matches_class(ch : UInt16, class : UInt16) -> Bool {
   match class.to_int().unsafe_to_char() {
     'a' => {
       let c = ch.to_int().unsafe_to_char()
-      (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')  // letters
+      (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') // letters
     }
-    'c' => ch.to_int() < 32 || ch.to_int() == 127  // control chars
+    'c' => ch.to_int() < 32 || ch.to_int() == 127 // control chars
     'd' => {
       let c = ch.to_int().unsafe_to_char()
-      c >= '0' && c <= '9'  // digits
+      c >= '0' && c <= '9' // digits
     }
     'l' => {
       let c = ch.to_int().unsafe_to_char()
-      c >= 'a' && c <= 'z'  // lowercase
+      c >= 'a' && c <= 'z' // lowercase
     }
     'p' => {
       // punctuation
       let c = ch.to_int()
-      (c >= 33 && c <= 47) || (c >= 58 && c <= 64) || (c >= 91 && c <= 96) || (c >= 123 && c <= 126)
+      (c >= 33 && c <= 47) ||
+      (c >= 58 && c <= 64) ||
+      (c >= 91 && c <= 96) ||
+      (c >= 123 && c <= 126)
     }
     's' => {
       let c = ch.to_int().unsafe_to_char()
-      c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u000b' || c == '\u000c'  // space
+      c == ' ' ||
+      c == '\t' ||
+      c == '\n' ||
+      c == '\r' ||
+      c == '\u000b' ||
+      c == '\u000c' // space
     }
     'u' => {
       let c = ch.to_int().unsafe_to_char()
-      c >= 'A' && c <= 'Z'  // uppercase
+      c >= 'A' && c <= 'Z' // uppercase
     }
     'w' => {
       let c = ch.to_int().unsafe_to_char()
-      (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'  // alphanumeric
+      (c >= 'a' && c <= 'z') ||
+      (c >= 'A' && c <= 'Z') ||
+      (c >= '0' && c <= '9') ||
+      c == '_' // alphanumeric
     }
     'x' => {
       let c = ch.to_int().unsafe_to_char()
-      (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')  // hex
+      (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') // hex
     }
-    'z' => ch.to_int() == 0  // null
+    'z' => ch.to_int() == 0 // null
     _ => false
   }
 }
@@ -419,7 +430,12 @@ fn matches_class(ch : UInt16, class : UInt16) -> Bool {
 ///|
 /// Helper: Match pattern against string starting at given positions
 /// Returns (matched_length, end_pos) or (-1, -1) if no match
-fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (Int, Int) {
+fn match_pattern(
+  str : String,
+  str_pos : Int,
+  pat : String,
+  pat_pos : Int,
+) -> (Int, Int) {
   let str_len = str.length()
   let pat_len = pat.length()
 
@@ -429,7 +445,8 @@ fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (I
   }
 
   // Check for quantifiers (* or +)
-  let has_quantifier = pat_pos + 1 < pat_len && (pat[pat_pos + 1] == '*' || pat[pat_pos + 1] == '+')
+  let has_quantifier = pat_pos + 1 < pat_len &&
+    (pat[pat_pos + 1] == '*' || pat[pat_pos + 1] == '+')
 
   if has_quantifier {
     let quantifier = pat[pat_pos + 1]
@@ -440,7 +457,7 @@ fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (I
       // * means 0 or more - try matching rest of pattern first (greedy)
       let (_, end1) = match_pattern(str, str_pos, pat, pat_pos + 2)
       if end1 >= 0 {
-        return (str_pos - str_pos, end1)  // 0 matches
+        return (str_pos - str_pos, end1) // 0 matches
       }
 
       // Try matching 1 or more times
@@ -455,7 +472,9 @@ fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (I
           ch == pat_char
         }
 
-        if !matches { break }
+        if !matches {
+          break
+        }
         pos = pos + 1
 
         // Try matching rest of pattern after consuming this char
@@ -480,7 +499,9 @@ fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (I
           ch == pat_char
         }
 
-        if !matches { break }
+        if !matches {
+          break
+        }
         pos = pos + 1
         matched = matched + 1
 
@@ -505,7 +526,7 @@ fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (I
 
   // No quantifier - match single character
   if str_pos >= str_len {
-    return (-1, -1)  // End of string but pattern remains
+    return (-1, -1) // End of string but pattern remains
   }
 
   let pat_char = pat[pat_pos]
@@ -528,7 +549,12 @@ fn match_pattern(str : String, str_pos : Int, pat : String, pat_pos : Int) -> (I
 
   // Character matched, continue with rest of pattern
   let advance = if pat_char == '%' { 2 } else { 1 }
-  let (rest_len, end_pos) = match_pattern(str, str_pos + 1, pat, pat_pos + advance)
+  let (rest_len, end_pos) = match_pattern(
+    str,
+    str_pos + 1,
+    pat,
+    pat_pos + advance,
+  )
   if rest_len < 0 {
     return (-1, -1)
   }
@@ -546,7 +572,7 @@ pub fn string_find(
   match (s, pattern) {
     (@value.TValue::String(str), @value.TValue::String(pat)) => {
       let start_pos = match init {
-        Some(i) => if i > 0 { i - 1 } else { 0 }  // Lua 1-based to 0-based
+        Some(i) => if i > 0 { i - 1 } else { 0 } // Lua 1-based to 0-based
         None => 0
       }
 
@@ -557,11 +583,7 @@ pub fn string_find(
       let anchor_start = pat_len > 0 && pat[0] == '^'
       let anchor_end = pat_len > 0 && pat[pat_len - 1] == '$'
 
-      let search_pat = if anchor_start {
-        pat[1:].to_string()
-      } else {
-        pat
-      }
+      let search_pat = if anchor_start { pat[1:].to_string() } else { pat }
       let search_pat_final = if anchor_end && search_pat.length() > 0 {
         search_pat[:search_pat.length() - 1].to_string()
       } else {
@@ -570,17 +592,19 @@ pub fn string_find(
 
       // If anchored at start, only try position start_pos
       if anchor_start {
-        let (matched_len, end_pos) = match_pattern(str, start_pos, search_pat_final, 0)
+        let (matched_len, end_pos) = match_pattern(
+          str, start_pos, search_pat_final, 0,
+        )
         if matched_len >= 0 {
           // If anchored at end, check that we matched to the end
           if anchor_end {
             if end_pos == str_len {
-              return (start_pos + 1, end_pos)  // Lua 1-based
+              return (start_pos + 1, end_pos) // Lua 1-based
             } else {
-              return (0, 0)  // Didn't match to end
+              return (0, 0) // Didn't match to end
             }
           }
-          return (start_pos + 1, end_pos)  // Lua 1-based
+          return (start_pos + 1, end_pos) // Lua 1-based
         }
         return (0, 0)
       }
@@ -592,10 +616,10 @@ pub fn string_find(
           // If anchored at end, check that we matched to the end
           if anchor_end {
             if end_pos == str_len {
-              return (i + 1, end_pos)  // Lua 1-based
+              return (i + 1, end_pos) // Lua 1-based
             }
           } else {
-            return (i + 1, end_pos)  // Lua 1-based
+            return (i + 1, end_pos) // Lua 1-based
           }
         }
       }
@@ -621,7 +645,11 @@ pub fn string_gsub(
   repl : @value.TValue,
 ) -> (String, Int) raise StdlibError {
   match (s, pattern, repl) {
-    (@value.TValue::String(str), @value.TValue::String(pat), @value.TValue::String(replacement)) => {
+    (
+      @value.TValue::String(str),
+      @value.TValue::String(pat),
+      @value.TValue::String(replacement),
+    ) => {
       let mut result = ""
       let mut i = 0
       let mut count = 0
@@ -629,7 +657,7 @@ pub fn string_gsub(
       let pat_len = pat.length()
 
       if pat_len == 0 {
-        return (str, 0)  // Empty pattern matches nothing
+        return (str, 0) // Empty pattern matches nothing
       }
 
       while i < str_len {
@@ -682,24 +710,25 @@ pub fn string_format(
       let len = format_str.length()
 
       while i < len {
-        if format_str[i] == 37 {  // '%' character
+        if format_str[i] == 37 { // '%' character
           if i + 1 < len {
             let spec = format_str[i + 1]
-            if spec == 115 {  // 's' - string
+            if spec == 115 { // 's' - string
               if arg_index < args.length() {
                 result = result + tostring(args[arg_index])
                 arg_index = arg_index + 1
               }
               i = i + 2
               continue
-            } else if spec == 100 {  // 'd' - decimal integer
+            } else if spec == 100 { // 'd' - decimal integer
               if arg_index < args.length() {
                 let val = args[arg_index].to_integer() catch {
-                  _ => raise StdlibError::TypeMismatch(
-                    func="string.format",
-                    expected="number",
-                    actual=type_(args[arg_index]),
-                  )
+                  _ =>
+                    raise StdlibError::TypeMismatch(
+                      func="string.format",
+                      expected="number",
+                      actual=type_(args[arg_index]),
+                    )
                 }
                 result = result + val.to_string()
                 arg_index = arg_index + 1
@@ -739,7 +768,7 @@ pub fn math_sin(x : @value.TValue) -> @value.TValue raise StdlibError {
       )
   }
   // TODO: Implement sin when MoonBit exposes math functions
-  @value.TValue::number(0.0)  // Stub
+  @value.TValue::number(0.0) // Stub
 }
 
 ///|
@@ -755,7 +784,7 @@ pub fn math_cos(x : @value.TValue) -> @value.TValue raise StdlibError {
       )
   }
   // TODO: Implement cos when MoonBit exposes math functions
-  @value.TValue::number(1.0)  // Stub
+  @value.TValue::number(1.0) // Stub
 }
 
 ///|
@@ -793,15 +822,17 @@ pub fn math_log(
           )
       }
       // TODO: Implement log with base when MoonBit exposes log functions
-      @value.TValue::number(1.0)  // Stub
+      @value.TValue::number(1.0) // Stub
     }
-    None => @value.TValue::number(1.0)  // Stub - natural log (base e)
+    None => @value.TValue::number(1.0) // Stub - natural log (base e)
   }
 }
 
 ///|
 /// math.min(...) - Minimum value
-pub fn math_min(values : Array[@value.TValue]) -> @value.TValue raise StdlibError {
+pub fn math_min(
+  values : Array[@value.TValue],
+) -> @value.TValue raise StdlibError {
   if values.length() == 0 {
     raise StdlibError::InvalidArgument(
       func="math.min",
@@ -838,7 +869,9 @@ pub fn math_min(values : Array[@value.TValue]) -> @value.TValue raise StdlibErro
 
 ///|
 /// math.max(...) - Maximum value
-pub fn math_max(values : Array[@value.TValue]) -> @value.TValue raise StdlibError {
+pub fn math_max(
+  values : Array[@value.TValue],
+) -> @value.TValue raise StdlibError {
   if values.length() == 0 {
     raise StdlibError::InvalidArgument(
       func="math.max",
@@ -884,15 +917,14 @@ pub fn math_random(
   // Simple LCG: next = (a * seed + c) mod m
   let a = 1103515245
   let c = 12345
-  let modulus = 1073741824  // 2^30 (reduced to fit in Int)
+  let modulus = 1073741824 // 2^30 (reduced to fit in Int)
   let next_seed = (a * seed + c) % modulus
   let random_float = next_seed.to_double() / modulus.to_double()
 
   match (m, n) {
-    (None, None) => {
+    (None, None) =>
       // random() returns float in [0, 1)
       (@value.TValue::number(random_float), next_seed)
-    }
     (Some(m_val), None) => {
       // random(m) returns integer in [1, m]
       let m_int = m_val.to_integer() catch {
@@ -952,7 +984,10 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   state.set_global("select", @value.TValue::native_function("select"))
 
   // Garbage collection (stub - MoonBit handles GC automatically)
-  state.set_global("collectgarbage", @value.TValue::native_function("collectgarbage"))
+  state.set_global(
+    "collectgarbage",
+    @value.TValue::native_function("collectgarbage"),
+  )
 
   // File loading functions
   state.set_global("dofile", @value.TValue::native_function("dofile"))
@@ -971,8 +1006,14 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   state.set_global("rawlen", @value.TValue::native_function("rawlen"))
 
   // Metatable functions
-  state.set_global("setmetatable", @value.TValue::native_function("setmetatable"))
-  state.set_global("getmetatable", @value.TValue::native_function("getmetatable"))
+  state.set_global(
+    "setmetatable",
+    @value.TValue::native_function("setmetatable"),
+  )
+  state.set_global(
+    "getmetatable",
+    @value.TValue::native_function("getmetatable"),
+  )
 
   // Iteration functions
   state.set_global("next", @value.TValue::native_function("next"))
@@ -984,9 +1025,15 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
 
   // Math constants
   math_table.set_string("pi", @value.TValue::number(3.14159265358979323846))
-  math_table.set_string("huge", @value.TValue::number(1.0 / 0.0))  // infinity
-  math_table.set_string("maxinteger", @value.TValue::integer(9223372036854775807L))  // 2^63 - 1
-  math_table.set_string("mininteger", @value.TValue::integer(-9223372036854775808L))  // -2^63
+  math_table.set_string("huge", @value.TValue::number(1.0 / 0.0)) // infinity
+  math_table.set_string(
+    "maxinteger",
+    @value.TValue::integer(9223372036854775807L),
+  ) // 2^63 - 1
+  math_table.set_string(
+    "mininteger",
+    @value.TValue::integer(-9223372036854775808L),
+  ) // -2^63
 
   // Math functions
   math_table.set_string("abs", @value.TValue::native_function("math.abs"))
@@ -1011,12 +1058,24 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
 
   // Create table library table
   let table_table = @value.Table::new()
-  table_table.set_string("insert", @value.TValue::native_function("table.insert"))
-  table_table.set_string("remove", @value.TValue::native_function("table.remove"))
-  table_table.set_string("concat", @value.TValue::native_function("table.concat"))
+  table_table.set_string(
+    "insert",
+    @value.TValue::native_function("table.insert"),
+  )
+  table_table.set_string(
+    "remove",
+    @value.TValue::native_function("table.remove"),
+  )
+  table_table.set_string(
+    "concat",
+    @value.TValue::native_function("table.concat"),
+  )
   table_table.set_string("sort", @value.TValue::native_function("table.sort"))
   table_table.set_string("pack", @value.TValue::native_function("table.pack"))
-  table_table.set_string("unpack", @value.TValue::native_function("table.unpack"))
+  table_table.set_string(
+    "unpack",
+    @value.TValue::native_function("table.unpack"),
+  )
 
   state.set_global("table", @value.TValue::table(table_table))
 
@@ -1024,13 +1083,25 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   let string_table = @value.Table::new()
   string_table.set_string("len", @value.TValue::native_function("string.len"))
   string_table.set_string("sub", @value.TValue::native_function("string.sub"))
-  string_table.set_string("upper", @value.TValue::native_function("string.upper"))
-  string_table.set_string("lower", @value.TValue::native_function("string.lower"))
+  string_table.set_string(
+    "upper",
+    @value.TValue::native_function("string.upper"),
+  )
+  string_table.set_string(
+    "lower",
+    @value.TValue::native_function("string.lower"),
+  )
   string_table.set_string("find", @value.TValue::native_function("string.find"))
   string_table.set_string("gsub", @value.TValue::native_function("string.gsub"))
-  string_table.set_string("format", @value.TValue::native_function("string.format"))
+  string_table.set_string(
+    "format",
+    @value.TValue::native_function("string.format"),
+  )
   string_table.set_string("rep", @value.TValue::native_function("string.rep"))
-  string_table.set_string("reverse", @value.TValue::native_function("string.reverse"))
+  string_table.set_string(
+    "reverse",
+    @value.TValue::native_function("string.reverse"),
+  )
   string_table.set_string("byte", @value.TValue::native_function("string.byte"))
   string_table.set_string("char", @value.TValue::native_function("string.char"))
 
@@ -1051,11 +1122,17 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   // Create stdout/stderr/stdin stubs
   // These are tables with a write method
   let stdout_table = @value.Table::new()
-  stdout_table.set_string("write", @value.TValue::native_function("io.stdout.write"))
+  stdout_table.set_string(
+    "write",
+    @value.TValue::native_function("io.stdout.write"),
+  )
   io_table.set_string("stdout", @value.TValue::table(stdout_table))
 
   let stderr_table = @value.Table::new()
-  stderr_table.set_string("write", @value.TValue::native_function("io.stderr.write"))
+  stderr_table.set_string(
+    "write",
+    @value.TValue::native_function("io.stderr.write"),
+  )
   io_table.set_string("stderr", @value.TValue::table(stderr_table))
 
   let stdin_table = @value.Table::new()
@@ -1076,7 +1153,10 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   os_table.set_string("getenv", @value.TValue::native_function("os.getenv"))
   os_table.set_string("remove", @value.TValue::native_function("os.remove"))
   os_table.set_string("rename", @value.TValue::native_function("os.rename"))
-  os_table.set_string("setlocale", @value.TValue::native_function("os.setlocale"))
+  os_table.set_string(
+    "setlocale",
+    @value.TValue::native_function("os.setlocale"),
+  )
   os_table.set_string("time", @value.TValue::native_function("os.time"))
   os_table.set_string("tmpname", @value.TValue::native_function("os.tmpname"))
 
@@ -1084,34 +1164,103 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   let coroutine_table = @value.Table::new()
 
   // Add coroutine module functions (all stubs - coroutines not supported)
-  coroutine_table.set_string("create", @value.TValue::native_function("coroutine.create"))
-  coroutine_table.set_string("resume", @value.TValue::native_function("coroutine.resume"))
-  coroutine_table.set_string("running", @value.TValue::native_function("coroutine.running"))
-  coroutine_table.set_string("status", @value.TValue::native_function("coroutine.status"))
-  coroutine_table.set_string("wrap", @value.TValue::native_function("coroutine.wrap"))
-  coroutine_table.set_string("yield", @value.TValue::native_function("coroutine.yield"))
-  coroutine_table.set_string("isyieldable", @value.TValue::native_function("coroutine.isyieldable"))
-  coroutine_table.set_string("close", @value.TValue::native_function("coroutine.close"))
+  coroutine_table.set_string(
+    "create",
+    @value.TValue::native_function("coroutine.create"),
+  )
+  coroutine_table.set_string(
+    "resume",
+    @value.TValue::native_function("coroutine.resume"),
+  )
+  coroutine_table.set_string(
+    "running",
+    @value.TValue::native_function("coroutine.running"),
+  )
+  coroutine_table.set_string(
+    "status",
+    @value.TValue::native_function("coroutine.status"),
+  )
+  coroutine_table.set_string(
+    "wrap",
+    @value.TValue::native_function("coroutine.wrap"),
+  )
+  coroutine_table.set_string(
+    "yield",
+    @value.TValue::native_function("coroutine.yield"),
+  )
+  coroutine_table.set_string(
+    "isyieldable",
+    @value.TValue::native_function("coroutine.isyieldable"),
+  )
+  coroutine_table.set_string(
+    "close",
+    @value.TValue::native_function("coroutine.close"),
+  )
 
   loaded_table.set_string("coroutine", @value.TValue::table(coroutine_table))
   let debug_table = @value.Table::new()
 
   // Add debug module functions (mostly stubs)
-  debug_table.set_string("getinfo", @value.TValue::native_function("debug.getinfo"))
-  debug_table.set_string("sethook", @value.TValue::native_function("debug.sethook"))
-  debug_table.set_string("getlocal", @value.TValue::native_function("debug.getlocal"))
-  debug_table.set_string("setlocal", @value.TValue::native_function("debug.setlocal"))
-  debug_table.set_string("getupvalue", @value.TValue::native_function("debug.getupvalue"))
-  debug_table.set_string("setupvalue", @value.TValue::native_function("debug.setupvalue"))
-  debug_table.set_string("upvalueid", @value.TValue::native_function("debug.upvalueid"))
-  debug_table.set_string("upvaluejoin", @value.TValue::native_function("debug.upvaluejoin"))
-  debug_table.set_string("traceback", @value.TValue::native_function("debug.traceback"))
-  debug_table.set_string("getmetatable", @value.TValue::native_function("debug.getmetatable"))
-  debug_table.set_string("setmetatable", @value.TValue::native_function("debug.setmetatable"))
-  debug_table.set_string("getuservalue", @value.TValue::native_function("debug.getuservalue"))
-  debug_table.set_string("setuservalue", @value.TValue::native_function("debug.setuservalue"))
-  debug_table.set_string("gethook", @value.TValue::native_function("debug.gethook"))
-  debug_table.set_string("getregistry", @value.TValue::native_function("debug.getregistry"))
+  debug_table.set_string(
+    "getinfo",
+    @value.TValue::native_function("debug.getinfo"),
+  )
+  debug_table.set_string(
+    "sethook",
+    @value.TValue::native_function("debug.sethook"),
+  )
+  debug_table.set_string(
+    "getlocal",
+    @value.TValue::native_function("debug.getlocal"),
+  )
+  debug_table.set_string(
+    "setlocal",
+    @value.TValue::native_function("debug.setlocal"),
+  )
+  debug_table.set_string(
+    "getupvalue",
+    @value.TValue::native_function("debug.getupvalue"),
+  )
+  debug_table.set_string(
+    "setupvalue",
+    @value.TValue::native_function("debug.setupvalue"),
+  )
+  debug_table.set_string(
+    "upvalueid",
+    @value.TValue::native_function("debug.upvalueid"),
+  )
+  debug_table.set_string(
+    "upvaluejoin",
+    @value.TValue::native_function("debug.upvaluejoin"),
+  )
+  debug_table.set_string(
+    "traceback",
+    @value.TValue::native_function("debug.traceback"),
+  )
+  debug_table.set_string(
+    "getmetatable",
+    @value.TValue::native_function("debug.getmetatable"),
+  )
+  debug_table.set_string(
+    "setmetatable",
+    @value.TValue::native_function("debug.setmetatable"),
+  )
+  debug_table.set_string(
+    "getuservalue",
+    @value.TValue::native_function("debug.getuservalue"),
+  )
+  debug_table.set_string(
+    "setuservalue",
+    @value.TValue::native_function("debug.setuservalue"),
+  )
+  debug_table.set_string(
+    "gethook",
+    @value.TValue::native_function("debug.gethook"),
+  )
+  debug_table.set_string(
+    "getregistry",
+    @value.TValue::native_function("debug.getregistry"),
+  )
 
   loaded_table.set_string("debug", @value.TValue::table(debug_table))
 
@@ -1122,7 +1271,10 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   package_table.set_string("preload", @value.TValue::table(preload_table))
 
   // package.path - search path for Lua modules
-  package_table.set_string("path", @value.TValue::string("./?.lua;./?/init.lua"))
+  package_table.set_string(
+    "path",
+    @value.TValue::string("./?.lua;./?/init.lua"),
+  )
 
   // package.cpath - search path for C modules (not supported, but provide it)
   package_table.set_string("cpath", @value.TValue::string(""))
@@ -1152,7 +1304,10 @@ pub fn register_stdlib(state : @state.LuaState) -> Unit {
   let g_table = @value.Table::new()
   let g_metatable = @value.Table::new()
   g_metatable.set_string("__index", @value.TValue::native_function("_G__index"))
-  g_metatable.set_string("__newindex", @value.TValue::native_function("_G__newindex"))
+  g_metatable.set_string(
+    "__newindex",
+    @value.TValue::native_function("_G__newindex"),
+  )
   g_table.set_metatable(@value.TValue::table(g_metatable))
   state.set_global("_G", @value.TValue::table(g_table))
 }

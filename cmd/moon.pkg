@@ -1,0 +1,11 @@
+import {
+  "TheWaWaR/clap",
+  "moonbitlang/x/sys",
+  "mizchi/js/node/fs",
+  "lua/api",
+}
+
+options(
+  is_main: true,
+  supported_targets: "js",
+)

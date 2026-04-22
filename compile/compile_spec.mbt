@@ -48,13 +48,19 @@ pub fn Compiler::compile_expr(
 ///|
 /// Finalize and get the compiled prototype
 #declaration_only
-pub fn Compiler::finish(self : Compiler, param_count : Int, is_vararg : Bool) -> @proto.Proto[@value.TValue] {
+pub fn Compiler::finish(
+  self : Compiler,
+  param_count : Int,
+  is_vararg : Bool,
+) -> @proto.Proto[@value.TValue] {
   ...
 }
 
 ///|
 /// Compile a complete Lua chunk to bytecode
 #declaration_only
-pub fn compile(stmt : @parse.Stmt) -> @proto.Proto[@value.TValue] raise CompileError {
+pub fn compile(
+  stmt : @parse.Stmt,
+) -> @proto.Proto[@value.TValue] raise CompileError {
   ...
 }

@@ -2,17 +2,21 @@
 // Based on Lua 5.4's lvm.c
 // Register-based virtual machine
 
-///| /// Execute bytecode on a Lua state
+///|
+/// /// Execute bytecode on a Lua state
 /// Now supports function calls via call stack
-pub fn execute(state : @state.LuaState, proto : @proto.Proto[@value.TValue]) -> Unit raise VMError {
+pub fn execute(
+  state : @state.LuaState,
+  proto : @proto.Proto[@value.TValue],
+) -> Unit raise VMError {
   // Convert proto to FunctionValue and push initial frame
   let func = @value.FunctionValue::new_with_protos(
     proto.code,
     proto.constants,
     proto.protos,
-    [],  // No upvalues for top-level chunk
-    0,   // No parameters for top-level chunk
-    false,  // Top-level chunk is not vararg
+    [], // No upvalues for top-level chunk
+    0, // No parameters for top-level chunk
+    false, // Top-level chunk is not vararg
   )
   let base = state.stack_size()
 
@@ -55,15 +59,13 @@ pub fn execute(state : @state.LuaState, proto : @proto.Proto[@value.TValue]) -> 
         state.update_pc(frame.pc + 1 + offset) catch {
           _ => raise VMError::RuntimeError(message="Failed to update PC")
         }
-      ExecutionResult::Call => {
+      ExecutionResult::Call =>
         // Call pushed a new frame, which already has PC=0
         // No need to update PC - just continue with the new frame
         ()
-      }
-      ExecutionResult::Return => {
+      ExecutionResult::Return =>
         // Return already popped frame, nothing to do
         ()
-      }
     }
   }
 }
@@ -71,10 +73,10 @@ pub fn execute(state : @state.LuaState, proto : @proto.Proto[@value.TValue]) -> 
 ///|
 /// Execution result - indicates what should happen after instruction
 enum ExecutionResult {
-  Continue          // Normal sequential execution
-  Jump(Int)         // Jump by offset
-  Call              // Function call (frame already pushed)
-  Return            // Function return (frame already popped)
+  Continue // Normal sequential execution
+  Jump(Int) // Jump by offset
+  Call // Function call (frame already pushed)
+  Return // Function return (frame already popped)
 } derive(Debug)
 
 ///|
@@ -153,7 +155,9 @@ pub fn execute_instruction(
 
       state.set(target_index, value) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register write in LOADK: base=\{base}, a=\{a}, target_index=\{target_index}, stack_size=\{state.stack_size()}")
+          raise VMError::RuntimeError(
+            message="Invalid register write in LOADK: base=\{base}, a=\{a}, target_index=\{target_index}, stack_size=\{state.stack_size()}",
+          )
       }
       ExecutionResult::Continue
     }
@@ -170,7 +174,9 @@ pub fn execute_instruction(
 
       // Get the proto from the current function's proto pool
       if bx < 0 || bx >= frame.func.protos.length() {
-        raise VMError::RuntimeError(message="Invalid proto index in CLOSURE: bx=\{bx}, protos.length=\{frame.func.protos.length()}")
+        raise VMError::RuntimeError(
+          message="Invalid proto index in CLOSURE: bx=\{bx}, protos.length=\{frame.func.protos.length()}",
+        )
       }
       let proto = frame.func.protos[bx]
 
@@ -185,7 +191,9 @@ pub fn execute_instruction(
         } else {
           // Capture from current function's upvalues - reuse the parent's upvalue
           if desc.index < 0 || desc.index >= frame.func.upvalues.length() {
-            raise VMError::RuntimeError(message="Invalid upvalue index in CLOSURE: index=\{desc.index}, upvalues.length=\{frame.func.upvalues.length()}")
+            raise VMError::RuntimeError(
+              message="Invalid upvalue index in CLOSURE: index=\{desc.index}, upvalues.length=\{frame.func.upvalues.length()}",
+            )
           }
           frame.func.upvalues[desc.index]
         }
@@ -208,7 +216,10 @@ pub fn execute_instruction(
         state.push(@value.TValue::nil())
       }
       state.set(target_index, @value.TValue::function(closure)) catch {
-        _ => raise VMError::RuntimeError(message="Invalid register write in CLOSURE")
+        _ =>
+          raise VMError::RuntimeError(
+            message="Invalid register write in CLOSURE",
+          )
       }
       ExecutionResult::Continue
     }
@@ -225,7 +236,9 @@ pub fn execute_instruction(
 
       // Check upvalue index bounds
       if b < 0 || b >= frame.func.upvalues.length() {
-        raise VMError::RuntimeError(message="Invalid upvalue index in GETUPVAL: b=\{b}, upvalues.length=\{frame.func.upvalues.length()}")
+        raise VMError::RuntimeError(
+          message="Invalid upvalue index in GETUPVAL: b=\{b}, upvalues.length=\{frame.func.upvalues.length()}",
+        )
       }
 
       // Get the upvalue
@@ -233,16 +246,14 @@ pub fn execute_instruction(
 
       // Read value from upvalue (check if Open or Closed)
       let value = match upvalue.val.kind {
-        @value.UpvalueKind::Open(stack_index) => {
+        @value.UpvalueKind::Open(stack_index) =>
           // Open upvalue - read from stack
           state.get(stack_index) catch {
             _ => @value.TValue::nil()
           }
-        }
-        @value.UpvalueKind::Closed(cell) => {
+        @value.UpvalueKind::Closed(cell) =>
           // Closed upvalue - read from captured value
           cell.val
-        }
       }
 
       // Store in destination register
@@ -251,7 +262,10 @@ pub fn execute_instruction(
         state.push(@value.TValue::nil())
       }
       state.set(target_index, value) catch {
-        _ => raise VMError::RuntimeError(message="Invalid register write in GETUPVAL")
+        _ =>
+          raise VMError::RuntimeError(
+            message="Invalid register write in GETUPVAL",
+          )
       }
       ExecutionResult::Continue
     }
@@ -268,12 +282,17 @@ pub fn execute_instruction(
 
       // Check upvalue index bounds
       if b < 0 || b >= frame.func.upvalues.length() {
-        raise VMError::RuntimeError(message="Invalid upvalue index in SETUPVAL: b=\{b}, upvalues.length=\{frame.func.upvalues.length()}")
+        raise VMError::RuntimeError(
+          message="Invalid upvalue index in SETUPVAL: b=\{b}, upvalues.length=\{frame.func.upvalues.length()}",
+        )
       }
 
       // Get value from register
       let value = state.get(base + a + 1) catch {
-        _ => raise VMError::RuntimeError(message="Invalid register access in SETUPVAL")
+        _ =>
+          raise VMError::RuntimeError(
+            message="Invalid register access in SETUPVAL",
+          )
       }
 
       // Get the upvalue
@@ -281,16 +300,17 @@ pub fn execute_instruction(
 
       // Write value to upvalue (check if Open or Closed)
       match upvalue.val.kind {
-        @value.UpvalueKind::Open(stack_index) => {
+        @value.UpvalueKind::Open(stack_index) =>
           // Open upvalue - write to stack
           state.set(stack_index, value) catch {
-            _ => raise VMError::RuntimeError(message="Failed to write to open upvalue")
+            _ =>
+              raise VMError::RuntimeError(
+                message="Failed to write to open upvalue",
+              )
           }
-        }
-        @value.UpvalueKind::Closed(cell) => {
+        @value.UpvalueKind::Closed(cell) =>
           // Closed upvalue - write to captured value
           cell.val = value
-        }
       }
       ExecutionResult::Continue
     }
@@ -345,13 +365,7 @@ pub fn execute_instruction(
     @opcodes.OpCode::Div => {
       // Div: R[A] := R[B] / R[C]
       // Division by zero returns inf/-inf (IEEE 754 semantics)
-      execute_binary_arith(
-        state,
-        instr,
-        base,
-        fn(a, b) { a / b },
-        "DIV",
-      )
+      execute_binary_arith(state, instr, base, fn(a, b) { a / b }, "DIV")
       ExecutionResult::Continue
     }
     @opcodes.OpCode::Idiv => {
@@ -384,7 +398,13 @@ pub fn execute_instruction(
     }
     @opcodes.OpCode::Pow => {
       // Pow: R[A] := R[B] ^ R[C]
-      execute_binary_arith(state, instr, base, fn(a, b) { @math.pow(a, b) }, "POW")
+      execute_binary_arith(
+        state,
+        instr,
+        base,
+        fn(a, b) { @math.pow(a, b) },
+        "POW",
+      )
       ExecutionResult::Continue
     }
     @opcodes.OpCode::BAnd => {
@@ -602,13 +622,17 @@ pub fn execute_instruction(
       // Each concatenation checks for __concat metamethod
       let mut result_val = state.get(base + b + 1) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register access in CONCAT")
+          raise VMError::RuntimeError(
+            message="Invalid register access in CONCAT",
+          )
       }
 
       for i = b + 1; i <= c; i = i + 1 {
         let next_val = state.get(base + i + 1) catch {
           _ =>
-            raise VMError::RuntimeError(message="Invalid register access in CONCAT")
+            raise VMError::RuntimeError(
+              message="Invalid register access in CONCAT",
+            )
         }
 
         // Check for __concat metamethod
@@ -620,30 +644,35 @@ pub fn execute_instruction(
         result_val = match metamethod {
           Some(@value.TValue::NativeFunction(nfunc)) => {
             // Call the native __concat metamethod
-            let results = call_native_function(state, nfunc.name, [result_val, next_val])
+            let results = call_native_function(state, nfunc.name, [
+              result_val, next_val,
+            ])
             match results.length() {
-              0 => @value.TValue::string("")  // No result, use empty string
-              _ => results[0]  // Use first result
+              0 => @value.TValue::string("") // No result, use empty string
+              _ => results[0] // Use first result
             }
           }
           Some(@value.TValue::Function(func)) => {
             // Call the bytecode __concat metamethod
-            let results = call_bytecode_function(state, func, [result_val, next_val])
+            let results = call_bytecode_function(state, func, [
+              result_val, next_val,
+            ])
             match results.length() {
-              0 => @value.TValue::string("")  // No result, use empty string
-              _ => results[0]  // Use first result
+              0 => @value.TValue::string("") // No result, use empty string
+              _ => results[0] // Use first result
             }
           }
-          _ => {
+          _ =>
             // No metamethod, perform default string concatenation
             @value.TValue::string(result_val.to_string() + next_val.to_string())
-          }
         }
       }
 
       state.set(base + a + 1, result_val) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register write in CONCAT")
+          raise VMError::RuntimeError(
+            message="Invalid register write in CONCAT",
+          )
       }
       ExecutionResult::Continue
     }
@@ -660,7 +689,7 @@ pub fn execute_instruction(
       // Get length based on type
       let length = match val_b {
         @value.TValue::String(s) => s.length()
-        @value.TValue::Table(t) => {
+        @value.TValue::Table(t) =>
           // Check for __len metamethod
           match get_metamethod(t, "__len") {
             Some(@value.TValue::NativeFunction(nfunc)) => {
@@ -668,14 +697,13 @@ pub fn execute_instruction(
               let results = call_native_function(state, nfunc.name, [val_b])
               // Extract the length from the result
               match results.length() {
-                0 => t.length()  // No result, use default
-                _ => {
+                0 => t.length() // No result, use default
+                _ =>
                   match results[0] {
                     @value.TValue::Integer(i) => i.to_int()
                     @value.TValue::Number(n) => n.to_int()
-                    _ => t.length()  // Invalid result, use default
+                    _ => t.length() // Invalid result, use default
                   }
-                }
               }
             }
             Some(@value.TValue::Function(func)) => {
@@ -683,20 +711,21 @@ pub fn execute_instruction(
               let results = call_bytecode_function(state, func, [val_b])
               // Extract the length from the result
               match results.length() {
-                0 => t.length()  // No result, use default
-                _ => {
+                0 => t.length() // No result, use default
+                _ =>
                   match results[0] {
                     @value.TValue::Integer(i) => i.to_int()
                     @value.TValue::Number(n) => n.to_int()
-                    _ => t.length()  // Invalid result, use default
+                    _ => t.length() // Invalid result, use default
                   }
-                }
               }
             }
-            _ => t.length()  // No __len, use default
+            _ => t.length() // No __len, use default
           }
-        }
-        _ => raise VMError::RuntimeError(message="attempt to get length of a \{val_b.type_of()} value")
+        _ =>
+          raise VMError::RuntimeError(
+            message="attempt to get length of a \{val_b.type_of()} value",
+          )
       }
 
       state.set(base + a + 1, @value.TValue::number(length.to_double())) catch {
@@ -733,7 +762,7 @@ pub fn execute_instruction(
       let is_truthy = val_a.to_boolean()
       let should_skip = if k { !is_truthy } else { is_truthy }
       if should_skip {
-        ExecutionResult::Jump(1)  // Skip next instruction
+        ExecutionResult::Jump(1) // Skip next instruction
       } else {
         ExecutionResult::Continue
       }
@@ -748,7 +777,7 @@ pub fn execute_instruction(
         "EQ",
       )
       if should_skip {
-        ExecutionResult::Jump(1)  // Skip next instruction
+        ExecutionResult::Jump(1) // Skip next instruction
       } else {
         ExecutionResult::Continue
       }
@@ -767,7 +796,7 @@ pub fn execute_instruction(
         "LT",
       )
       if should_skip {
-        ExecutionResult::Jump(1)  // Skip next instruction
+        ExecutionResult::Jump(1) // Skip next instruction
       } else {
         ExecutionResult::Continue
       }
@@ -794,7 +823,7 @@ pub fn execute_instruction(
         "LE",
       )
       if should_skip {
-        ExecutionResult::Jump(1)  // Skip next instruction
+        ExecutionResult::Jump(1) // Skip next instruction
       } else {
         ExecutionResult::Continue
       }
@@ -804,10 +833,9 @@ pub fn execute_instruction(
       let sbx = instr.get_sbx()
       ExecutionResult::Jump(sbx)
     }
-    @opcodes.OpCode::Call => {
+    @opcodes.OpCode::Call =>
       // Call: R[A](R[A+1], ..., R[A+B])
       execute_call(state, instr, base)
-    }
     @opcodes.OpCode::Return => {
       // Return: return R[A], ..., R[A+B-1]
       let a = instr.get_a()
@@ -836,12 +864,16 @@ pub fn execute_instruction(
 
       let table_val = state.get(base + b + 1) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register access in GETTABLE")
+          raise VMError::RuntimeError(
+            message="Invalid register access in GETTABLE",
+          )
       }
 
       let key_val = state.get(base + c + 1) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register access in GETTABLE")
+          raise VMError::RuntimeError(
+            message="Invalid register access in GETTABLE",
+          )
       }
 
       let result = match table_val {
@@ -851,17 +883,18 @@ pub fn execute_instruction(
 
           // If nil, check for __index metamethod
           match value {
-            @value.TValue::Nil => {
+            @value.TValue::Nil =>
               match get_metamethod(table, "__index") {
-                Some(index_mm) => {
+                Some(index_mm) =>
                   match index_mm {
-                    @value.TValue::Table(index_table) => {
+                    @value.TValue::Table(index_table) =>
                       // __index is a table, get value from it
                       index_table.get(key_val)
-                    }
                     @value.TValue::NativeFunction(nfunc) => {
                       // __index is a native function, call it with (table, key)
-                      let results = call_native_function(state, nfunc.name, [table_val, key_val])
+                      let results = call_native_function(state, nfunc.name, [
+                        table_val, key_val,
+                      ])
                       match results.length() {
                         0 => @value.TValue::nil()
                         _ => results[0]
@@ -869,7 +902,9 @@ pub fn execute_instruction(
                     }
                     @value.TValue::Function(func) => {
                       // __index is a bytecode function, call it with (table, key)
-                      let results = call_bytecode_function(state, func, [table_val, key_val])
+                      let results = call_bytecode_function(state, func, [
+                        table_val, key_val,
+                      ])
                       match results.length() {
                         0 => @value.TValue::nil()
                         _ => results[0]
@@ -877,11 +912,9 @@ pub fn execute_instruction(
                     }
                     _ => @value.TValue::nil()
                   }
-                }
                 None => @value.TValue::nil()
               }
-            }
-            _ => value  // Non-nil value found, return it
+            _ => value // Non-nil value found, return it
           }
         }
         _ =>
@@ -899,7 +932,9 @@ pub fn execute_instruction(
 
       state.set(target_index, result) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register write in GETTABLE")
+          raise VMError::RuntimeError(
+            message="Invalid register write in GETTABLE",
+          )
       }
       ExecutionResult::Continue
     }
@@ -912,17 +947,23 @@ pub fn execute_instruction(
 
       let table_val = state.get(base + a + 1) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register access in SETTABLE")
+          raise VMError::RuntimeError(
+            message="Invalid register access in SETTABLE",
+          )
       }
 
       let key_val = state.get(base + b + 1) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register access in SETTABLE")
+          raise VMError::RuntimeError(
+            message="Invalid register access in SETTABLE",
+          )
       }
 
       let value_val = state.get(base + c + 1) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register access in SETTABLE")
+          raise VMError::RuntimeError(
+            message="Invalid register access in SETTABLE",
+          )
       }
 
       match table_val {
@@ -931,41 +972,41 @@ pub fn execute_instruction(
           let existing_value = table.get(key_val)
 
           match existing_value {
-            @value.TValue::Nil => {
+            @value.TValue::Nil =>
               // Key doesn't exist, check for __newindex metamethod
               match get_metamethod(table, "__newindex") {
-                Some(newindex_mm) => {
+                Some(newindex_mm) =>
                   match newindex_mm {
-                    @value.TValue::Table(newindex_table) => {
+                    @value.TValue::Table(newindex_table) =>
                       // __newindex is a table, set value in it
                       newindex_table.set(key_val, value_val)
-                    }
-                    @value.TValue::NativeFunction(nfunc) => {
+                    @value.TValue::NativeFunction(nfunc) =>
                       // __newindex is a native function, call it with (table, key, value)
-                      ignore(call_native_function(state, nfunc.name, [table_val, key_val, value_val]))
-                      // Function called for side effects, don't store result
-                    }
-                    @value.TValue::Function(func) => {
+                      ignore(
+                        call_native_function(state, nfunc.name, [
+                          table_val, key_val, value_val,
+                        ]),
+                      )
+                    // Function called for side effects, don't store result
+                    @value.TValue::Function(func) =>
                       // __newindex is a bytecode function, call it with (table, key, value)
-                      ignore(call_bytecode_function(state, func, [table_val, key_val, value_val]))
-                      // Function called for side effects, don't store result
-                    }
-                    _ => {
+                      ignore(
+                        call_bytecode_function(state, func, [
+                          table_val, key_val, value_val,
+                        ]),
+                      )
+                    // Function called for side effects, don't store result
+                    _ =>
                       // Invalid __newindex, use direct set
                       table.set(key_val, value_val)
-                    }
                   }
-                }
-                None => {
+                None =>
                   // No __newindex metamethod, set directly
                   table.set(key_val, value_val)
-                }
               }
-            }
-            _ => {
+            _ =>
               // Key exists, set directly (don't invoke __newindex)
               table.set(key_val, value_val)
-            }
           }
         }
         _ =>
@@ -982,12 +1023,17 @@ pub fn execute_instruction(
 
       // Get global name from constants
       if bx < 0 || bx >= constants.length() {
-        raise VMError::RuntimeError(message="Invalid constant index in GETGLOBAL")
+        raise VMError::RuntimeError(
+          message="Invalid constant index in GETGLOBAL",
+        )
       }
 
       let name = match constants[bx] {
         @value.TValue::String(s) => s
-        _ => raise VMError::RuntimeError(message="GETGLOBAL requires string constant")
+        _ =>
+          raise VMError::RuntimeError(
+            message="GETGLOBAL requires string constant",
+          )
       }
 
       // Get value from globals (returns nil for undefined globals)
@@ -1001,7 +1047,9 @@ pub fn execute_instruction(
 
       state.set(target_index, value) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register write in GETGLOBAL")
+          raise VMError::RuntimeError(
+            message="Invalid register write in GETGLOBAL",
+          )
       }
       ExecutionResult::Continue
     }
@@ -1012,18 +1060,25 @@ pub fn execute_instruction(
 
       // Get global name from constants
       if bx < 0 || bx >= constants.length() {
-        raise VMError::RuntimeError(message="Invalid constant index in SETGLOBAL")
+        raise VMError::RuntimeError(
+          message="Invalid constant index in SETGLOBAL",
+        )
       }
 
       let name = match constants[bx] {
         @value.TValue::String(s) => s
-        _ => raise VMError::RuntimeError(message="SETGLOBAL requires string constant")
+        _ =>
+          raise VMError::RuntimeError(
+            message="SETGLOBAL requires string constant",
+          )
       }
 
       // Get value from register
       let value = state.get(base + a + 1) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register access in SETGLOBAL")
+          raise VMError::RuntimeError(
+            message="Invalid register access in SETGLOBAL",
+          )
       }
 
       // Set global
@@ -1048,7 +1103,7 @@ pub fn execute_instruction(
       let num_available_varargs = if arg_count > param_count {
         arg_count - param_count
       } else {
-        0  // No varargs passed
+        0 // No varargs passed
       }
 
       // Determine how many varargs to copy
@@ -1085,7 +1140,10 @@ pub fn execute_instruction(
         }
         let write_index = base + a + i + 1
         state.set(write_index, val) catch {
-          _ => raise VMError::RuntimeError(message="Failed to write vararg at index \{write_index}, stack size \{state.stack_size()}")
+          _ =>
+            raise VMError::RuntimeError(
+              message="Failed to write vararg at index \{write_index}, stack size \{state.stack_size()}",
+            )
         }
       }
 
@@ -1105,7 +1163,9 @@ pub fn execute_instruction(
       // Get table from R[A]
       let table_val = state.get(base + a + 1) catch {
         _ =>
-          raise VMError::RuntimeError(message="Invalid register access in SETLIST")
+          raise VMError::RuntimeError(
+            message="Invalid register access in SETLIST",
+          )
       }
 
       let table = match table_val {
@@ -1195,16 +1255,16 @@ fn execute_binary_arith(
       // Call the native metamethod function with both operands
       let results = call_native_function(state, nfunc.name, [val_b, val_c])
       match results.length() {
-        0 => @value.TValue::nil()  // No result, use nil
-        _ => results[0]  // Use first result
+        0 => @value.TValue::nil() // No result, use nil
+        _ => results[0] // Use first result
       }
     }
     Some(@value.TValue::Function(func)) => {
       // Call the bytecode metamethod function with both operands
       let results = call_bytecode_function(state, func, [val_b, val_c])
       match results.length() {
-        0 => @value.TValue::nil()  // No result, use nil
-        _ => results[0]  // Use first result
+        0 => @value.TValue::nil() // No result, use nil
+        _ => results[0] // Use first result
       }
     }
     _ => {
@@ -1277,22 +1337,21 @@ fn execute_comparison(
       // Call the native metamethod function with both operands
       let results = call_native_function(state, nfunc.name, [val_b, val_c])
       match results.length() {
-        0 => false  // No result, treat as false
-        _ => results[0].to_boolean()  // Convert result to boolean
+        0 => false // No result, treat as false
+        _ => results[0].to_boolean() // Convert result to boolean
       }
     }
     Some(@value.TValue::Function(func)) => {
       // Call the bytecode metamethod function with both operands
       let results = call_bytecode_function(state, func, [val_b, val_c])
       match results.length() {
-        0 => false  // No result, treat as false
-        _ => results[0].to_boolean()  // Convert result to boolean
+        0 => false // No result, treat as false
+        _ => results[0].to_boolean() // Convert result to boolean
       }
     }
-    _ => {
+    _ =>
       // No metamethod, perform default comparison
       op(val_b, val_c)
-    }
   }
 
   // Skip next instruction if (comparison_result ~= k), per Lua semantics
@@ -1325,9 +1384,7 @@ fn execute_native_call(
   let args : Array[@value.TValue] = []
   for i = 0; i < nargs; i = i + 1 {
     // Arguments start at R[A+1], which is base + a + 1 + 1 (since function is at base + a + 1)
-    let arg = state.get(base + a + 2 + i) catch {
-      _ => @value.TValue::nil()
-    }
+    let arg = state.get(base + a + 2 + i) catch { _ => @value.TValue::nil() }
     args.push(arg)
   }
 
@@ -1337,7 +1394,7 @@ fn execute_native_call(
   // Store results starting at R[A]
   for i = 0; i < results.length(); i = i + 1 {
     state.set(base + a + 1 + i, results[i]) catch {
-      _ => ()  // Ignore set errors for now
+      _ => () // Ignore set errors for now
     }
   }
 }
@@ -1352,7 +1409,7 @@ fn call_native_function(
   match name {
     "print" => {
       @stdlib.print(args)
-      []  // print returns no values
+      [] // print returns no values
     }
     "type" => {
       let arg = if args.length() > 0 { args[0] } else { @value.TValue::nil() }
@@ -1364,27 +1421,26 @@ fn call_native_function(
 
       // Check for __tostring metamethod on tables
       let str = match arg {
-        @value.TValue::Table(t) => {
+        @value.TValue::Table(t) =>
           match get_metamethod(t, "__tostring") {
             Some(@value.TValue::NativeFunction(nfunc)) => {
               // Call the native __tostring metamethod
               let results = call_native_function(state, nfunc.name, [arg])
               match results.length() {
-                0 => @stdlib.tostring(arg)  // No result, use default
-                _ => results[0].to_string()  // Convert result to string
+                0 => @stdlib.tostring(arg) // No result, use default
+                _ => results[0].to_string() // Convert result to string
               }
             }
             Some(@value.TValue::Function(func)) => {
               // Call the bytecode __tostring metamethod
               let results = call_bytecode_function(state, func, [arg])
               match results.length() {
-                0 => @stdlib.tostring(arg)  // No result, use default
-                _ => results[0].to_string()  // Convert result to string
+                0 => @stdlib.tostring(arg) // No result, use default
+                _ => results[0].to_string() // Convert result to string
               }
             }
             _ => @stdlib.tostring(arg)
           }
-        }
         _ => @stdlib.tostring(arg)
       }
 
@@ -1400,7 +1456,11 @@ fn call_native_function(
       }
     }
     "assert" => {
-      let condition = if args.length() > 0 { args[0] } else { @value.TValue::nil() }
+      let condition = if args.length() > 0 {
+        args[0]
+      } else {
+        @value.TValue::nil()
+      }
       let message = if args.length() > 1 {
         match args[1] {
           @value.TValue::String(s) => Some(s)
@@ -1429,30 +1489,33 @@ fn call_native_function(
       } else {
         "error"
       }
-      raise VMError::RuntimeError(message=message)
+      raise VMError::RuntimeError(message~)
     }
     "select" => {
       // select(index, ...) - Returns all arguments after index
       // select("#", ...) - Returns count of arguments (excluding the "#")
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="select requires at least 1 argument")
+        raise VMError::InvalidOperation(
+          message="select requires at least 1 argument",
+        )
       }
 
       match args[0] {
-        @value.TValue::String(s) => {
+        @value.TValue::String(s) =>
           if s == "#" {
             // Return count of remaining arguments
             [@value.TValue::integer((args.length() - 1).to_int64())]
           } else {
-            raise VMError::InvalidOperation(message="select: string index must be '#'")
+            raise VMError::InvalidOperation(
+              message="select: string index must be '#'",
+            )
           }
-        }
         @value.TValue::Integer(_) | @value.TValue::Number(_) => {
           // Get the index as integer
           let idx = match args[0] {
             @value.TValue::Integer(i) => i.to_int()
             @value.TValue::Number(num) => num.to_int()
-            _ => 1  // Shouldn't happen
+            _ => 1 // Shouldn't happen
           }
 
           // Lua allows negative indices: -1 is the last arg, -2 is second-to-last, etc.
@@ -1467,7 +1530,9 @@ fn call_native_function(
 
           // Check bounds
           if actual_idx < 1 || actual_idx > args.length() - 1 {
-            raise VMError::InvalidOperation(message="select: index out of range")
+            raise VMError::InvalidOperation(
+              message="select: index out of range",
+            )
           }
 
           // Return all arguments from actual_idx onwards
@@ -1477,7 +1542,10 @@ fn call_native_function(
           }
           result
         }
-        _ => raise VMError::InvalidOperation(message="select: index must be a number or '#'")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="select: index must be a number or '#'",
+          )
       }
     }
     // Raw table access functions (bypass metatables)
@@ -1505,7 +1573,7 @@ fn call_native_function(
       let key = args[1]
       let value = args[2]
       table.set(key, value)
-      [args[0]]  // Returns the table
+      [args[0]] // Returns the table
     }
     "rawequal" => {
       // rawequal(v1, v2) - Check equality without invoking metamethods
@@ -1524,7 +1592,10 @@ fn call_native_function(
       let length = match args[0] {
         @value.TValue::String(s) => s.length()
         @value.TValue::Table(t) => t.length()
-        _ => raise VMError::InvalidOperation(message="rawlen requires string or table")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="rawlen requires string or table",
+          )
       }
       [@value.TValue::number(length.to_double())]
     }
@@ -1532,11 +1603,16 @@ fn call_native_function(
     "setmetatable" => {
       // setmetatable(table, metatable) - Set metatable for a table
       if args.length() < 2 {
-        raise VMError::InvalidOperation(message="setmetatable requires 2 arguments")
+        raise VMError::InvalidOperation(
+          message="setmetatable requires 2 arguments",
+        )
       }
       let table = match args[0] {
         @value.TValue::Table(t) => t
-        _ => raise VMError::InvalidOperation(message="setmetatable: first argument must be a table")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="setmetatable: first argument must be a table",
+          )
       }
 
       // Metatable must be nil or a table
@@ -1544,34 +1620,45 @@ fn call_native_function(
       match metatable {
         @value.TValue::Nil | @value.TValue::Table(_) => {
           table.set_metatable(metatable)
-          [args[0]]  // Returns the table
+          [args[0]] // Returns the table
         }
-        _ => raise VMError::InvalidOperation(message="setmetatable: second argument must be nil or a table")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="setmetatable: second argument must be nil or a table",
+          )
       }
     }
     "getmetatable" => {
       // getmetatable(object) - Get metatable of an object
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="getmetatable requires an argument")
+        raise VMError::InvalidOperation(
+          message="getmetatable requires an argument",
+        )
       }
 
       match args[0] {
         @value.TValue::Table(t) => [t.get_metatable()]
-        _ => [@value.TValue::nil()]  // Non-tables return nil (for now)
+        _ => [@value.TValue::nil()] // Non-tables return nil (for now)
       }
     }
     // Iteration functions
     "next" => {
       // next(table, index) - Get next key-value pair
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="next requires a table argument")
+        raise VMError::InvalidOperation(
+          message="next requires a table argument",
+        )
       }
       let table = match args[0] {
         @value.TValue::Table(t) => t
         _ => raise VMError::InvalidOperation(message="next requires a table")
       }
 
-      let start_key = if args.length() >= 2 { args[1] } else { @value.TValue::nil() }
+      let start_key = if args.length() >= 2 {
+        args[1]
+      } else {
+        @value.TValue::nil()
+      }
 
       // Simplified implementation: iterate through array part first, then we're done
       // Full implementation would also iterate through hash part
@@ -1597,59 +1684,68 @@ fn call_native_function(
             [@value.TValue::nil()]
           }
         }
-        _ => {
+        _ =>
           // Non-integer key (hash part not implemented for iteration)
           [@value.TValue::nil()]
-        }
       }
     }
     "pairs" => {
       // pairs(table) - Returns iterator function, table, nil
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="pairs requires a table argument")
+        raise VMError::InvalidOperation(
+          message="pairs requires a table argument",
+        )
       }
       match args[0] {
-        @value.TValue::Table(_) => {
+        @value.TValue::Table(_) =>
           // Return: next function, table, nil (starting key)
           [
             @value.TValue::native_function("next"),
             args[0],
-            @value.TValue::nil()
+            @value.TValue::nil(),
           ]
-        }
         _ => raise VMError::InvalidOperation(message="pairs requires a table")
       }
     }
     "ipairs" => {
       // ipairs(table) - Returns iterator function, table, 0
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="ipairs requires a table argument")
+        raise VMError::InvalidOperation(
+          message="ipairs requires a table argument",
+        )
       }
       match args[0] {
-        @value.TValue::Table(_) => {
+        @value.TValue::Table(_) =>
           // Return: iterator function (ipairs_iter), table, 0 (starting index)
           [
             @value.TValue::native_function("ipairs_iter"),
             args[0],
-            @value.TValue::integer(0L)
+            @value.TValue::integer(0L),
           ]
-        }
         _ => raise VMError::InvalidOperation(message="ipairs requires a table")
       }
     }
     "ipairs_iter" => {
       // Internal iterator for ipairs: (table, i) -> (i+1, table[i+1])
       if args.length() < 2 {
-        raise VMError::InvalidOperation(message="ipairs_iter requires table and index")
+        raise VMError::InvalidOperation(
+          message="ipairs_iter requires table and index",
+        )
       }
       let table = match args[0] {
         @value.TValue::Table(t) => t
-        _ => raise VMError::InvalidOperation(message="ipairs_iter requires a table")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="ipairs_iter requires a table",
+          )
       }
       let i = match args[1] {
         @value.TValue::Integer(idx) => idx.to_int()
         @value.TValue::Number(n) => n.to_int()
-        _ => raise VMError::InvalidOperation(message="ipairs_iter requires numeric index")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="ipairs_iter requires numeric index",
+          )
       }
 
       let next_i = i + 1
@@ -1663,9 +1759,7 @@ fn call_native_function(
     // Math library functions
     "math.abs" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="abs requires a number")
         }
       } else {
@@ -1676,10 +1770,9 @@ fn call_native_function(
     }
     "math.floor" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
-          _ => raise VMError::InvalidOperation(message="floor requires a number")
+        args[0].to_number() catch {
+          _ =>
+            raise VMError::InvalidOperation(message="floor requires a number")
         }
       } else {
         raise VMError::InvalidOperation(message="floor requires a number")
@@ -1688,9 +1781,7 @@ fn call_native_function(
     }
     "math.ceil" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="ceil requires a number")
         }
       } else {
@@ -1700,17 +1791,15 @@ fn call_native_function(
     }
     "math.min" => {
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="min requires at least one argument")
+        raise VMError::InvalidOperation(
+          message="min requires at least one argument",
+        )
       }
-      let mut min_val = try {
-        args[0].to_number()
-      } catch {
+      let mut min_val = args[0].to_number() catch {
         _ => raise VMError::InvalidOperation(message="min requires numbers")
       }
       for i = 1; i < args.length(); i = i + 1 {
-        let val = try {
-          args[i].to_number()
-        } catch {
+        let val = args[i].to_number() catch {
           _ => raise VMError::InvalidOperation(message="min requires numbers")
         }
         if val < min_val {
@@ -1721,17 +1810,15 @@ fn call_native_function(
     }
     "math.max" => {
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="max requires at least one argument")
+        raise VMError::InvalidOperation(
+          message="max requires at least one argument",
+        )
       }
-      let mut max_val = try {
-        args[0].to_number()
-      } catch {
+      let mut max_val = args[0].to_number() catch {
         _ => raise VMError::InvalidOperation(message="max requires numbers")
       }
       for i = 1; i < args.length(); i = i + 1 {
-        let val = try {
-          args[i].to_number()
-        } catch {
+        let val = args[i].to_number() catch {
           _ => raise VMError::InvalidOperation(message="max requires numbers")
         }
         if val > max_val {
@@ -1742,9 +1829,7 @@ fn call_native_function(
     }
     "math.sqrt" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="sqrt requires a number")
         }
       } else {
@@ -1754,9 +1839,7 @@ fn call_native_function(
     }
     "math.sin" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="sin requires a number")
         }
       } else {
@@ -1766,9 +1849,7 @@ fn call_native_function(
     }
     "math.cos" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="cos requires a number")
         }
       } else {
@@ -1778,9 +1859,7 @@ fn call_native_function(
     }
     "math.tan" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="tan requires a number")
         }
       } else {
@@ -1790,9 +1869,7 @@ fn call_native_function(
     }
     "math.asin" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="asin requires a number")
         }
       } else {
@@ -1802,9 +1879,7 @@ fn call_native_function(
     }
     "math.acos" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="acos requires a number")
         }
       } else {
@@ -1814,9 +1889,7 @@ fn call_native_function(
     }
     "math.atan" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="atan requires a number")
         }
       } else {
@@ -1826,9 +1899,7 @@ fn call_native_function(
     }
     "math.exp" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="exp requires a number")
         }
       } else {
@@ -1838,9 +1909,7 @@ fn call_native_function(
     }
     "math.log" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="log requires a number")
         }
       } else {
@@ -1850,9 +1919,7 @@ fn call_native_function(
     }
     "math.deg" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="deg requires a number")
         }
       } else {
@@ -1863,9 +1930,7 @@ fn call_native_function(
     }
     "math.rad" => {
       let arg = if args.length() > 0 {
-        try {
-          args[0].to_number()
-        } catch {
+        args[0].to_number() catch {
           _ => raise VMError::InvalidOperation(message="rad requires a number")
         }
       } else {
@@ -1874,7 +1939,7 @@ fn call_native_function(
       let radians = arg * (3.14159265358979323846 / 180.0)
       [@value.TValue::number(radians)]
     }
-    "math.type" => {
+    "math.type" =>
       // math.type(x) - Returns "integer", "float", or nil
       if args.length() == 0 {
         [@value.TValue::nil()]
@@ -1885,17 +1950,21 @@ fn call_native_function(
           _ => [@value.TValue::nil()]
         }
       }
-    }
     // Table library functions
     "table.insert" => {
       // table.insert(table, [pos,] value)
       // Must have 2 or 3 arguments exactly
       if args.length() < 2 || args.length() > 3 {
-        raise VMError::InvalidOperation(message="wrong number of arguments to 'insert'")
+        raise VMError::InvalidOperation(
+          message="wrong number of arguments to 'insert'",
+        )
       }
       let table = match args[0] {
         @value.TValue::Table(t) => t
-        _ => raise VMError::InvalidOperation(message="bad argument #1 to 'insert' (table expected)")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="bad argument #1 to 'insert' (table expected)",
+          )
       }
 
       if args.length() == 2 {
@@ -1905,10 +1974,11 @@ fn call_native_function(
         table.set_int(len + 1, value)
       } else {
         // table.insert(table, pos, value) - insert at position
-        let pos = try {
-          args[1].to_integer()
-        } catch {
-          _ => raise VMError::InvalidOperation(message="bad argument #2 to 'insert' (number expected)")
+        let pos = args[1].to_integer() catch {
+          _ =>
+            raise VMError::InvalidOperation(
+              message="bad argument #2 to 'insert' (number expected)",
+            )
         }
         let value = args[2]
 
@@ -1921,23 +1991,29 @@ fn call_native_function(
         // Insert the new value
         table.set_int(pos.to_int(), value)
       }
-      []  // Returns nothing
+      [] // Returns nothing
     }
     "table.remove" => {
       // table.remove(table, [pos])
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="table.remove requires a table argument")
+        raise VMError::InvalidOperation(
+          message="table.remove requires a table argument",
+        )
       }
       let table = match args[0] {
         @value.TValue::Table(t) => t
-        _ => raise VMError::InvalidOperation(message="table.remove requires a table")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="table.remove requires a table",
+          )
       }
 
       let pos = if args.length() >= 2 {
-        try {
-          args[1].to_integer().to_int()
-        } catch {
-          _ => raise VMError::InvalidOperation(message="table.remove position must be a number")
+        args[1].to_integer().to_int() catch {
+          _ =>
+            raise VMError::InvalidOperation(
+              message="table.remove position must be a number",
+            )
         }
       } else {
         // Default: remove last element
@@ -1960,11 +2036,16 @@ fn call_native_function(
     "table.concat" => {
       // table.concat(table, [sep, [i, [j]]])
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="table.concat requires a table argument")
+        raise VMError::InvalidOperation(
+          message="table.concat requires a table argument",
+        )
       }
       let table = match args[0] {
         @value.TValue::Table(t) => t
-        _ => raise VMError::InvalidOperation(message="table.concat requires a table")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="table.concat requires a table",
+          )
       }
 
       let sep = if args.length() >= 2 {
@@ -1977,9 +2058,7 @@ fn call_native_function(
       }
 
       let start = if args.length() >= 3 {
-        try {
-          args[2].to_integer().to_int()
-        } catch {
+        args[2].to_integer().to_int() catch {
           _ => 1
         }
       } else {
@@ -1987,9 +2066,7 @@ fn call_native_function(
       }
 
       let end = if args.length() >= 4 {
-        try {
-          args[3].to_integer().to_int()
-        } catch {
+        args[3].to_integer().to_int() catch {
           _ => table.length()
         }
       } else {
@@ -2009,11 +2086,14 @@ fn call_native_function(
     "table.sort" => {
       // table.sort(table, [comp]) - we'll implement simple ascending sort for now
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="table.sort requires a table argument")
+        raise VMError::InvalidOperation(
+          message="table.sort requires a table argument",
+        )
       }
       let table = match args[0] {
         @value.TValue::Table(t) => t
-        _ => raise VMError::InvalidOperation(message="table.sort requires a table")
+        _ =>
+          raise VMError::InvalidOperation(message="table.sort requires a table")
       }
 
       // Simple bubble sort implementation
@@ -2024,11 +2104,7 @@ fn call_native_function(
           let b = table.get_int(j + 1)
 
           // Compare values (numbers or strings)
-          let should_swap = try {
-            b.less_than(a)
-          } catch {
-            _ => false
-          }
+          let should_swap = b.less_than(a) catch { _ => false }
 
           if should_swap {
             table.set_int(j, b)
@@ -2036,7 +2112,7 @@ fn call_native_function(
           }
         }
       }
-      []  // Returns nothing
+      [] // Returns nothing
     }
     "table.pack" => {
       // table.pack(...) - returns table with all arguments and field 'n'
@@ -2050,17 +2126,20 @@ fn call_native_function(
     "table.unpack" => {
       // table.unpack(table, [i, [j]])
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="table.unpack requires a table argument")
+        raise VMError::InvalidOperation(
+          message="table.unpack requires a table argument",
+        )
       }
       let table = match args[0] {
         @value.TValue::Table(t) => t
-        _ => raise VMError::InvalidOperation(message="table.unpack requires a table")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="table.unpack requires a table",
+          )
       }
 
       let start = if args.length() >= 2 {
-        try {
-          args[1].to_integer().to_int()
-        } catch {
+        args[1].to_integer().to_int() catch {
           _ => 1
         }
       } else {
@@ -2068,9 +2147,7 @@ fn call_native_function(
       }
 
       let end = if args.length() >= 3 {
-        try {
-          args[2].to_integer().to_int()
-        } catch {
+        args[2].to_integer().to_int() catch {
           _ => table.length()
         }
       } else {
@@ -2086,93 +2163,106 @@ fn call_native_function(
     // String library functions
     "string.len" => {
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="string.len requires a string argument")
+        raise VMError::InvalidOperation(
+          message="string.len requires a string argument",
+        )
       }
       let s = match args[0] {
         @value.TValue::String(str) => str
-        _ => raise VMError::InvalidOperation(message="string.len requires a string")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="string.len requires a string",
+          )
       }
       [@value.TValue::number(s.length().to_double())]
     }
     "string.sub" => {
       if args.length() < 2 {
-        raise VMError::InvalidOperation(message="string.sub requires at least 2 arguments")
+        raise VMError::InvalidOperation(
+          message="string.sub requires at least 2 arguments",
+        )
       }
       let s = match args[0] {
         @value.TValue::String(str) => str
-        _ => raise VMError::InvalidOperation(message="string.sub requires a string")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="string.sub requires a string",
+          )
       }
       ignore(s)
-      let i = try {
-        args[1].to_integer().to_int()
-      } catch {
-        _ => raise VMError::InvalidOperation(message="string.sub index must be a number")
-      }
+      let i = args[1].to_integer().to_int() catch {
+          _ =>
+            raise VMError::InvalidOperation(
+              message="string.sub index must be a number",
+            )
+        }
 
       // Call stdlib function with or without j parameter
       let result = if args.length() >= 3 {
-        let j = try {
-          args[2].to_integer().to_int()
-        } catch {
-          _ => raise VMError::InvalidOperation(message="string.sub index must be a number")
-        }
-        try {
-          @stdlib.string_sub(args[0], i, j=j)
-        } catch {
-          err => raise VMError::RuntimeError(message="string.sub failed: \{err}")
+        let j = args[2].to_integer().to_int() catch {
+            _ =>
+              raise VMError::InvalidOperation(
+                message="string.sub index must be a number",
+              )
+          }
+        @stdlib.string_sub(args[0], i, j~) catch {
+          err =>
+            raise VMError::RuntimeError(message="string.sub failed: \{err}")
         }
       } else {
-        try {
-          @stdlib.string_sub(args[0], i)
-        } catch {
-          err => raise VMError::RuntimeError(message="string.sub failed: \{err}")
+        @stdlib.string_sub(args[0], i) catch {
+          err =>
+            raise VMError::RuntimeError(message="string.sub failed: \{err}")
         }
       }
       [@value.TValue::string(result)]
     }
     "string.upper" => {
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="string.upper requires a string argument")
+        raise VMError::InvalidOperation(
+          message="string.upper requires a string argument",
+        )
       }
-      let result = try {
-        @stdlib.string_upper(args[0])
-      } catch {
-        err => raise VMError::RuntimeError(message="string.upper failed: \{err}")
+      let result = @stdlib.string_upper(args[0]) catch {
+        err =>
+          raise VMError::RuntimeError(message="string.upper failed: \{err}")
       }
       [@value.TValue::string(result)]
     }
     "string.lower" => {
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="string.lower requires a string argument")
+        raise VMError::InvalidOperation(
+          message="string.lower requires a string argument",
+        )
       }
-      let result = try {
-        @stdlib.string_lower(args[0])
-      } catch {
-        err => raise VMError::RuntimeError(message="string.lower failed: \{err}")
+      let result = @stdlib.string_lower(args[0]) catch {
+        err =>
+          raise VMError::RuntimeError(message="string.lower failed: \{err}")
       }
       [@value.TValue::string(result)]
     }
     "string.find" => {
       if args.length() < 2 {
-        raise VMError::InvalidOperation(message="string.find requires at least 2 arguments")
+        raise VMError::InvalidOperation(
+          message="string.find requires at least 2 arguments",
+        )
       }
 
       let (start, end) = if args.length() >= 3 {
-        let init = try {
-          args[2].to_integer().to_int()
-        } catch {
-          _ => raise VMError::InvalidOperation(message="string.find init must be a number")
-        }
-        try {
-          @stdlib.string_find(args[0], args[1], init=init)
-        } catch {
-          err => raise VMError::RuntimeError(message="string.find failed: \{err}")
+        let init = args[2].to_integer().to_int() catch {
+            _ =>
+              raise VMError::InvalidOperation(
+                message="string.find init must be a number",
+              )
+          }
+        @stdlib.string_find(args[0], args[1], init~) catch {
+          err =>
+            raise VMError::RuntimeError(message="string.find failed: \{err}")
         }
       } else {
-        try {
-          @stdlib.string_find(args[0], args[1])
-        } catch {
-          err => raise VMError::RuntimeError(message="string.find failed: \{err}")
+        @stdlib.string_find(args[0], args[1]) catch {
+          err =>
+            raise VMError::RuntimeError(message="string.find failed: \{err}")
         }
       }
 
@@ -2181,79 +2271,91 @@ fn call_native_function(
         [@value.TValue::nil()]
       } else {
         // Found - return start and end positions
-        [@value.TValue::integer(start.to_int64()), @value.TValue::integer(end.to_int64())]
+        [
+          @value.TValue::integer(start.to_int64()),
+          @value.TValue::integer(end.to_int64()),
+        ]
       }
     }
     "string.gsub" => {
       if args.length() < 3 {
-        raise VMError::InvalidOperation(message="string.gsub requires 3 arguments")
+        raise VMError::InvalidOperation(
+          message="string.gsub requires 3 arguments",
+        )
       }
-      let (result, count) = try {
-        @stdlib.string_gsub(args[0], args[1], args[2])
-      } catch {
+      let (result, count) = @stdlib.string_gsub(args[0], args[1], args[2]) catch {
         err => raise VMError::RuntimeError(message="string.gsub failed: \{err}")
       }
       [@value.TValue::string(result), @value.TValue::integer(count.to_int64())]
     }
     "string.format" => {
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="string.format requires a format string")
+        raise VMError::InvalidOperation(
+          message="string.format requires a format string",
+        )
       }
       // Collect all arguments after the format string
       let format_args : Array[@value.TValue] = []
       for i = 1; i < args.length(); i = i + 1 {
         format_args.push(args[i])
       }
-      let result = try {
-        @stdlib.string_format(args[0], format_args)
-      } catch {
-        err => raise VMError::RuntimeError(message="string.format failed: \{err}")
+      let result = @stdlib.string_format(args[0], format_args) catch {
+        err =>
+          raise VMError::RuntimeError(message="string.format failed: \{err}")
       }
       [@value.TValue::string(result)]
     }
     "string.rep" => {
       if args.length() < 2 {
-        raise VMError::InvalidOperation(message="string.rep requires 2 arguments")
+        raise VMError::InvalidOperation(
+          message="string.rep requires 2 arguments",
+        )
       }
-      let n = try {
-        args[1].to_integer().to_int()
-      } catch {
-        _ => raise VMError::InvalidOperation(message="string.rep repetition count must be a number")
-      }
-      let result = try {
-        @stdlib.string_rep(args[0], n)
-      } catch {
+      let n = args[1].to_integer().to_int() catch {
+          _ =>
+            raise VMError::InvalidOperation(
+              message="string.rep repetition count must be a number",
+            )
+        }
+      let result = @stdlib.string_rep(args[0], n) catch {
         err => raise VMError::RuntimeError(message="string.rep failed: \{err}")
       }
       [@value.TValue::string(result)]
     }
     "string.reverse" => {
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="string.reverse requires a string argument")
+        raise VMError::InvalidOperation(
+          message="string.reverse requires a string argument",
+        )
       }
-      let result = try {
-        @stdlib.string_reverse(args[0])
-      } catch {
-        err => raise VMError::RuntimeError(message="string.reverse failed: \{err}")
+      let result = @stdlib.string_reverse(args[0]) catch {
+        err =>
+          raise VMError::RuntimeError(message="string.reverse failed: \{err}")
       }
       [@value.TValue::string(result)]
     }
     "string.byte" => {
       // string.byte(s [, i [, j]]) - Returns internal numeric codes of characters
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="string.byte requires a string argument")
+        raise VMError::InvalidOperation(
+          message="string.byte requires a string argument",
+        )
       }
       let s = match args[0] {
         @value.TValue::String(str) => str
-        _ => raise VMError::InvalidOperation(message="string.byte requires a string")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="string.byte requires a string",
+          )
       }
 
       // Get i (default 1)
       let i = if args.length() >= 2 {
-        try {
-          args[1].to_integer().to_int()
-        } catch {
-          _ => raise VMError::InvalidOperation(message="string.byte index must be a number")
+        args[1].to_integer().to_int() catch {
+          _ =>
+            raise VMError::InvalidOperation(
+              message="string.byte index must be a number",
+            )
         }
       } else {
         1
@@ -2261,10 +2363,11 @@ fn call_native_function(
 
       // Get j (default i)
       let j = if args.length() >= 3 {
-        try {
-          args[2].to_integer().to_int()
-        } catch {
-          _ => raise VMError::InvalidOperation(message="string.byte index must be a number")
+        args[2].to_integer().to_int() catch {
+          _ =>
+            raise VMError::InvalidOperation(
+              message="string.byte index must be a number",
+            )
         }
       } else {
         i
@@ -2276,7 +2379,7 @@ fn call_native_function(
 
       // Check bounds
       if start < 0 || start >= s.length() || end < start {
-        []  // Return empty for out of bounds
+        [] // Return empty for out of bounds
       } else {
         let result : Array[@value.TValue] = []
         let actual_end = if end >= s.length() { s.length() - 1 } else { end }
@@ -2291,13 +2394,16 @@ fn call_native_function(
       // string.char(...) - Returns string from character codes
       let result_chars : Array[Char] = []
       for i = 0; i < args.length(); i = i + 1 {
-        let code = try {
-          args[i].to_integer().to_int()
-        } catch {
-          _ => raise VMError::InvalidOperation(message="string.char requires integer arguments")
-        }
+        let code = args[i].to_integer().to_int() catch {
+            _ =>
+              raise VMError::InvalidOperation(
+                message="string.char requires integer arguments",
+              )
+          }
         if code < 0 || code > 255 {
-          raise VMError::InvalidOperation(message="string.char value out of range")
+          raise VMError::InvalidOperation(
+            message="string.char value out of range",
+          )
         }
         result_chars.push(code.unsafe_to_char())
       }
@@ -2308,7 +2414,9 @@ fn call_native_function(
       // pcall(f, ...) - Protected call
       // Returns (true, results...) on success or (false, error_message) on error
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="pcall requires at least one argument")
+        raise VMError::InvalidOperation(
+          message="pcall requires at least one argument",
+        )
       }
 
       let func_val = args[0]
@@ -2323,13 +2431,14 @@ fn call_native_function(
       // Try to call the function
       try {
         let results = match func_val {
-          @value.TValue::NativeFunction(nfunc) => {
+          @value.TValue::NativeFunction(nfunc) =>
             call_native_function(state, nfunc.name, call_args)
-          }
-          @value.TValue::Function(func) => {
+          @value.TValue::Function(func) =>
             call_bytecode_function(state, func, call_args)
-          }
-          _ => raise VMError::InvalidOperation(message="pcall: first argument must be a function")
+          _ =>
+            raise VMError::InvalidOperation(
+              message="pcall: first argument must be a function",
+            )
         }
 
         // Success: return (true, results...)
@@ -2342,12 +2451,16 @@ fn call_native_function(
         err => {
           // Clean up any call frames that were pushed
           while state.call_depth() > initial_depth {
-            ignore(state.pop_frame() catch { _ => raise VMError::RuntimeError(message="cleanup failed") })
+            ignore(
+              state.pop_frame() catch {
+                _ => raise VMError::RuntimeError(message="cleanup failed")
+              },
+            )
           }
 
           // Error: return (false, error_message)
           let error_msg = match err {
-            VMError::InvalidOpcode(op=op) => "Invalid opcode: \{op}"
+            VMError::InvalidOpcode(op~) => "Invalid opcode: \{op}"
             VMError::DivisionByZero => "Division by zero"
             VMError::InvalidOperation(message=msg) => msg
             VMError::RuntimeError(message=msg) => msg
@@ -2360,7 +2473,9 @@ fn call_native_function(
       // xpcall(f, err_handler, ...) - Extended protected call
       // Returns (true, results...) on success or (false, handler_result) on error
       if args.length() < 2 {
-        raise VMError::InvalidOperation(message="xpcall requires at least two arguments")
+        raise VMError::InvalidOperation(
+          message="xpcall requires at least two arguments",
+        )
       }
 
       let func_val = args[0]
@@ -2376,13 +2491,14 @@ fn call_native_function(
       // Try to call the function
       try {
         let results = match func_val {
-          @value.TValue::NativeFunction(nfunc) => {
+          @value.TValue::NativeFunction(nfunc) =>
             call_native_function(state, nfunc.name, call_args)
-          }
-          @value.TValue::Function(func) => {
+          @value.TValue::Function(func) =>
             call_bytecode_function(state, func, call_args)
-          }
-          _ => raise VMError::InvalidOperation(message="xpcall: first argument must be a function")
+          _ =>
+            raise VMError::InvalidOperation(
+              message="xpcall: first argument must be a function",
+            )
         }
 
         // Success: return (true, results...)
@@ -2395,12 +2511,16 @@ fn call_native_function(
         err => {
           // Clean up any call frames that were pushed
           while state.call_depth() > initial_depth {
-            ignore(state.pop_frame() catch { _ => raise VMError::RuntimeError(message="cleanup failed") })
+            ignore(
+              state.pop_frame() catch {
+                _ => raise VMError::RuntimeError(message="cleanup failed")
+              },
+            )
           }
 
           // Error: call error handler with error message
           let error_msg_str = match err {
-            VMError::InvalidOpcode(op=op) => "Invalid opcode: \{op}"
+            VMError::InvalidOpcode(op~) => "Invalid opcode: \{op}"
             VMError::DivisionByZero => "Division by zero"
             VMError::InvalidOperation(message=msg) => msg
             VMError::RuntimeError(message=msg) => msg
@@ -2410,20 +2530,20 @@ fn call_native_function(
           // Call error handler
           let handler_results = try {
             match err_handler {
-              @value.TValue::NativeFunction(nfunc) => {
+              @value.TValue::NativeFunction(nfunc) =>
                 call_native_function(state, nfunc.name, [error_msg])
-              }
-              @value.TValue::Function(func) => {
+              @value.TValue::Function(func) =>
                 call_bytecode_function(state, func, [error_msg])
-              }
-              _ => [error_msg]  // If handler is not a function, just use the error message
+              _ => [error_msg] // If handler is not a function, just use the error message
             }
           } catch {
-            _ => [error_msg]  // If handler fails, use original error message
+            _ => [error_msg] // If handler fails, use original error message
           }
 
           // Return (false, handler_result)
-          let result_array : Array[@value.TValue] = [@value.TValue::boolean(false)]
+          let result_array : Array[@value.TValue] = [
+            @value.TValue::boolean(false),
+          ]
           if handler_results.length() > 0 {
             result_array.push(handler_results[0])
           } else {
@@ -2447,50 +2567,57 @@ fn call_native_function(
       }
 
       match opt {
-        "count" => [@value.TValue::number(1024.0)]  // Return dummy memory usage
+        "count" => [@value.TValue::number(1024.0)] // Return dummy memory usage
         "isrunning" => [@value.TValue::boolean(true)]
-        _ => [@value.TValue::number(0.0)]  // For "collect", "step", etc.
+        _ => [@value.TValue::number(0.0)] // For "collect", "step", etc.
       }
     }
-    "dofile" => {
+    "dofile" =>
       // dofile([filename])
       // Execute a Lua file
       // Not implemented - would require file I/O
       raise VMError::InvalidOperation(message="dofile is not implemented")
-    }
-    "loadfile" => {
+    "loadfile" =>
       // loadfile([filename [, mode [, env]]])
       // Load a Lua file as a function
       // Not implemented - would require file I/O
       raise VMError::InvalidOperation(message="loadfile is not implemented")
-    }
     "load" => {
       // load(chunk, [chunkname], [mode], [env])
       // Loads a chunk as a function
       // For simplicity, we only support string chunks (not reader functions)
       // Returns either (function) on success or (nil, error_message) on error
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="load requires at least one argument")
+        raise VMError::InvalidOperation(
+          message="load requires at least one argument",
+        )
       }
 
       let code_str = match args[0] {
         @value.TValue::String(s) => s
         @value.TValue::Nil =>
-          return [@value.TValue::nil(), @value.TValue::string("load: chunk must be a string")]
+          return [
+            @value.TValue::nil(),
+            @value.TValue::string("load: chunk must be a string"),
+          ]
         _ =>
-          return [@value.TValue::nil(), @value.TValue::string("load: chunk must be a string")]
+          return [
+            @value.TValue::nil(),
+            @value.TValue::string("load: chunk must be a string"),
+          ]
       }
 
       // Try to compile the code using the registered compiler
       let func = state.compile_string(code_str) catch {
-        @state.StateError::RuntimeError(message~) => {
+        @state.StateError::RuntimeError(message~) =>
           // Return nil and error message
           return [@value.TValue::nil(), @value.TValue::string(message)]
-        }
-        _ => {
+        _ =>
           // Other state errors
-          return [@value.TValue::nil(), @value.TValue::string("load: compilation failed")]
-        }
+          return [
+            @value.TValue::nil(),
+            @value.TValue::string("load: compilation failed"),
+          ]
       }
 
       // Return the compiled function and nil (Lua load always returns 2 values)
@@ -2502,16 +2629,16 @@ fn call_native_function(
       for i = 0; i < args.length(); i = i + 1 {
         let val_str = args[i].to_string()
         // Print without newline (in real implementation would use stdout.write)
-        println(val_str)  // Simplified - should not add newline
+        println(val_str) // Simplified - should not add newline
       }
-      [@value.TValue::boolean(true)]  // Return true on success
+      [@value.TValue::boolean(true)] // Return true on success
     }
     "io.stdout.write" => {
       // io.stdout:write(...) - Write to stdout
       // First arg is 'self' (the stdout table), rest are values to write
       for i = 1; i < args.length(); i = i + 1 {
         let val_str = args[i].to_string()
-        println(val_str)  // Simplified
+        println(val_str) // Simplified
       }
       // Return the file handle (self)
       if args.length() > 0 {
@@ -2526,7 +2653,7 @@ fn call_native_function(
       for i = 1; i < args.length(); i = i + 1 {
         let val_str = args[i].to_string()
         // In a real implementation, would write to stderr
-        println(val_str)  // Simplified - should go to stderr
+        println(val_str) // Simplified - should go to stderr
       }
       // Return the file handle (self)
       if args.length() > 0 {
@@ -2539,7 +2666,9 @@ fn call_native_function(
       // __index metamethod for _G table
       // _G[key] should return global variable with that name
       if args.length() < 2 {
-        raise VMError::InvalidOperation(message="_G__index requires 2 arguments")
+        raise VMError::InvalidOperation(
+          message="_G__index requires 2 arguments",
+        )
       }
       let key = match args[1] {
         @value.TValue::String(s) => s
@@ -2553,7 +2682,9 @@ fn call_native_function(
       // __newindex metamethod for _G table
       // _G[key] = value should set global variable
       if args.length() < 3 {
-        raise VMError::InvalidOperation(message="_G__newindex requires 3 arguments")
+        raise VMError::InvalidOperation(
+          message="_G__newindex requires 3 arguments",
+        )
       }
       let key = match args[1] {
         @value.TValue::String(s) => s
@@ -2583,50 +2714,46 @@ fn call_native_function(
       info_table.set_string("namewhat", @value.TValue::string(""))
       [@value.TValue::table(info_table)]
     }
-    "debug.sethook" => {
+    "debug.sethook" =>
       // debug.sethook([thread,] hook, mask [, count])
       // Stub: does nothing
       []
-    }
-    "debug.gethook" => {
+    "debug.gethook" =>
       // debug.gethook([thread])
       // Returns: function, mask, count
       // Stub: return nil (no hook set)
-      [@value.TValue::nil(), @value.TValue::string(""), @value.TValue::integer(0L)]
-    }
-    "debug.getlocal" => {
+      [
+        @value.TValue::nil(),
+        @value.TValue::string(""),
+        @value.TValue::integer(0L),
+      ]
+    "debug.getlocal" =>
       // debug.getlocal([thread,] f, local)
       // Returns: name, value
       // Stub: return nil (no local found)
       [@value.TValue::nil()]
-    }
-    "debug.setlocal" => {
+    "debug.setlocal" =>
       // debug.setlocal([thread,] level, local, value)
       // Stub: return nil (can't set local)
       [@value.TValue::nil()]
-    }
-    "debug.getupvalue" => {
+    "debug.getupvalue" =>
       // debug.getupvalue(f, up)
       // Returns: name, value
       // Stub: return nil
       [@value.TValue::nil()]
-    }
-    "debug.setupvalue" => {
+    "debug.setupvalue" =>
       // debug.setupvalue(f, up, value)
       // Stub: return nil
       [@value.TValue::nil()]
-    }
-    "debug.upvalueid" => {
+    "debug.upvalueid" =>
       // debug.upvalueid(f, n)
       // Returns a unique identifier for the upvalue
       // Stub: return a dummy number
       [@value.TValue::integer(0L)]
-    }
-    "debug.upvaluejoin" => {
+    "debug.upvaluejoin" =>
       // debug.upvaluejoin(f1, n1, f2, n2)
       // Stub: does nothing
       []
-    }
     "debug.traceback" => {
       // debug.traceback([thread,] [message [, level]])
       // Returns a string with the stack traceback
@@ -2662,12 +2789,11 @@ fn call_native_function(
       }
       [@value.TValue::nil()]
     }
-    "debug.getuservalue" => {
+    "debug.getuservalue" =>
       // debug.getuservalue(u, n)
       // Stub: return nil (no uservalue)
       [@value.TValue::nil()]
-    }
-    "debug.setuservalue" => {
+    "debug.setuservalue" =>
       // debug.setuservalue(udata, value, n)
       // Stub: return udata
       if args.length() > 0 {
@@ -2675,7 +2801,6 @@ fn call_native_function(
       } else {
         [@value.TValue::nil()]
       }
-    }
     "debug.getregistry" => {
       // debug.getregistry()
       // Returns the registry table
@@ -2684,11 +2809,10 @@ fn call_native_function(
       [@value.TValue::table(registry)]
     }
     // OS module functions (mostly stubs)
-    "os.clock" => {
+    "os.clock" =>
       // os.clock() - Returns CPU time used (in seconds)
       // Stub: return a dummy value
       [@value.TValue::number(1.0)]
-    }
     "os.date" => {
       // os.date([format [, time]]) - Returns formatted date/time
       // Stub: return a simple date string
@@ -2735,59 +2859,54 @@ fn call_native_function(
       }
       [@value.TValue::number(t2 - t1)]
     }
-    "os.execute" => {
+    "os.execute" =>
       // os.execute([command]) - Execute a shell command
       // Stub: return success
-      [@value.TValue::boolean(true), @value.TValue::string("exit"), @value.TValue::integer(0L)]
-    }
-    "os.exit" => {
+      [
+        @value.TValue::boolean(true),
+        @value.TValue::string("exit"),
+        @value.TValue::integer(0L),
+      ]
+    "os.exit" =>
       // os.exit([code [, close]])
       // Stub: raise error to stop execution
       raise VMError::RuntimeError(message="os.exit called")
-    }
-    "os.getenv" => {
+    "os.getenv" =>
       // os.getenv(varname) - Get environment variable
       // Stub: return nil (no env vars)
       [@value.TValue::nil()]
-    }
-    "os.remove" => {
+    "os.remove" =>
       // os.remove(filename) - Remove a file
       // Stub: return success
       [@value.TValue::boolean(true)]
-    }
-    "os.rename" => {
+    "os.rename" =>
       // os.rename(oldname, newname) - Rename a file
       // Stub: return success
       [@value.TValue::boolean(true)]
-    }
-    "os.setlocale" => {
+    "os.setlocale" =>
       // os.setlocale(locale [, category])
       // Stub: return "C" (default locale)
       [@value.TValue::string("C")]
-    }
-    "os.time" => {
+    "os.time" =>
       // os.time([table]) - Returns current time as number
       // Stub: return a fixed timestamp
       if args.length() > 0 {
         match args[0] {
-          @value.TValue::Table(_) => {
+          @value.TValue::Table(_) =>
             // Should parse table and return timestamp
             // Stub: return dummy value
-            [@value.TValue::integer(1704067200L)]  // Jan 1, 2024
-          }
+            [@value.TValue::integer(1704067200L)] // Jan 1, 2024
           _ => [@value.TValue::integer(1704067200L)]
         }
       } else {
         [@value.TValue::integer(1704067200L)]
       }
-    }
-    "os.tmpname" => {
+    "os.tmpname" =>
       // os.tmpname() - Returns a temp file name
       // Stub: return a dummy name
       [@value.TValue::string("/tmp/lua_XXXXXX")]
-    }
     // Coroutine module functions (all stubs - not supported)
-    "coroutine.create" => {
+    "coroutine.create" =>
       // coroutine.create(f) - Creates a new coroutine
       // Stub: return the function as-is (won't work as coroutine)
       if args.length() > 0 {
@@ -2795,23 +2914,19 @@ fn call_native_function(
       } else {
         [@value.TValue::nil()]
       }
-    }
-    "coroutine.resume" => {
+    "coroutine.resume" =>
       // coroutine.resume(co [, val1, ...]) - Resume a coroutine
       // Stub: raise error
       raise VMError::InvalidOperation(message="coroutines not supported")
-    }
-    "coroutine.running" => {
+    "coroutine.running" =>
       // coroutine.running() - Returns running coroutine
       // Stub: return nil (not in a coroutine)
       [@value.TValue::nil(), @value.TValue::boolean(true)]
-    }
-    "coroutine.status" => {
+    "coroutine.status" =>
       // coroutine.status(co) - Returns coroutine status
       // Stub: return "dead"
       [@value.TValue::string("dead")]
-    }
-    "coroutine.wrap" => {
+    "coroutine.wrap" =>
       // coroutine.wrap(f) - Creates a wrapped coroutine
       // Stub: return the function as-is
       if args.length() > 0 {
@@ -2819,32 +2934,33 @@ fn call_native_function(
       } else {
         [@value.TValue::nil()]
       }
-    }
-    "coroutine.yield" => {
+    "coroutine.yield" =>
       // coroutine.yield(...) - Yields from a coroutine
       // Stub: raise error
       raise VMError::InvalidOperation(message="coroutines not supported")
-    }
-    "coroutine.isyieldable" => {
+    "coroutine.isyieldable" =>
       // coroutine.isyieldable() - Check if can yield
       // Stub: return false (can't yield)
       [@value.TValue::boolean(false)]
-    }
-    "coroutine.close" => {
+    "coroutine.close" =>
       // coroutine.close(co) - Close a coroutine
       // Stub: return success
       [@value.TValue::boolean(true)]
-    }
     "require" => {
       // require(modname)
       // Load a module if not already loaded, return the module value
       if args.length() == 0 {
-        raise VMError::InvalidOperation(message="require requires a module name")
+        raise VMError::InvalidOperation(
+          message="require requires a module name",
+        )
       }
 
       let modname = match args[0] {
         @value.TValue::String(s) => s
-        _ => raise VMError::InvalidOperation(message="require: module name must be a string")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="require: module name must be a string",
+          )
       }
 
       // Get package table
@@ -2852,14 +2968,22 @@ fn call_native_function(
       let package_table = match package_val {
         @value.TValue::Table(pkg_tbl) => pkg_tbl
         @value.TValue::Nil =>
-          raise VMError::InvalidOperation(message="require: package table not found")
-        _ => raise VMError::InvalidOperation(message="require: package is not a table")
+          raise VMError::InvalidOperation(
+            message="require: package table not found",
+          )
+        _ =>
+          raise VMError::InvalidOperation(
+            message="require: package is not a table",
+          )
       }
 
       // Get package.loaded table
       let loaded_table = match package_table.get_string("loaded") {
         @value.TValue::Table(tbl) => tbl
-        _ => raise VMError::InvalidOperation(message="require: package.loaded is not a table")
+        _ =>
+          raise VMError::InvalidOperation(
+            message="require: package.loaded is not a table",
+          )
       }
 
       // Check if module is already loaded
@@ -2873,26 +2997,26 @@ fn call_native_function(
         @value.TValue::String(s) => s
         _ => "./?.lua;./?/init.lua"
       }
-      let search_res = call_native_function(
-        state,
-        "package.searchpath",
-        [@value.TValue::string(modname), @value.TValue::string(path_str)]
-      )
+      let search_res = call_native_function(state, "package.searchpath", [
+        @value.TValue::string(modname),
+        @value.TValue::string(path_str),
+      ])
 
       // If found, load from file; otherwise build error from returned message
       if search_res.length() >= 1 {
         match search_res[0] {
           @value.TValue::String(file_path) => {
             // Read file and execute it
-            let src = try {
-              @fs.read_file_as_string(file_path)
-            } catch {
-              _ => raise VMError::RuntimeError(message="error reading module file")
+            let src = @fs.read_file_as_string(file_path) catch {
+              _ =>
+                raise VMError::RuntimeError(message="error reading module file")
             }
             // Compile to function
             let func_val = state.compile_string(src) catch {
               @state.StateError::RuntimeError(message~) =>
-                raise VMError::RuntimeError(message="error loading module: \{message}")
+                raise VMError::RuntimeError(
+                  message="error loading module: \{message}",
+                )
               _ => raise VMError::RuntimeError(message="error loading module")
             }
             // Execute chunk
@@ -2900,7 +3024,11 @@ fn call_native_function(
               @value.TValue::Function(func) => {
                 let results = call_bytecode_function(state, func, [])
                 // Determine module value
-                let module_val = if results.length() > 0 { results[0] } else { @value.TValue::boolean(true) }
+                let module_val = if results.length() > 0 {
+                  results[0]
+                } else {
+                  @value.TValue::boolean(true)
+                }
                 loaded_table.set_string(modname, module_val)
                 [module_val]
               }
@@ -2912,7 +3040,11 @@ fn call_native_function(
           }
           _ => {
             // Not found: return error
-            let err_msg = if search_res.length() >= 2 { search_res[1].to_string() } else { "module not found" }
+            let err_msg = if search_res.length() >= 2 {
+              search_res[1].to_string()
+            } else {
+              "module not found"
+            }
             raise VMError::RuntimeError(message=err_msg)
           }
         }
@@ -2971,7 +3103,8 @@ fn call_native_function(
           if template[i] == '?' {
             filepath = filepath + name
           } else {
-            filepath = filepath + template[i].to_int().unsafe_to_char().to_string()
+            filepath = filepath +
+              template[i].to_int().unsafe_to_char().to_string()
           }
         }
         if @fs.existsSync(filepath) {
@@ -3045,7 +3178,9 @@ fn call_bytecode_function(
       let arg_pos = call_base + 1 + i
       let reg_pos = new_base + i + 1
       let val = state.get(arg_pos + 1) catch { _ => @value.TValue::nil() }
-      state.set(reg_pos, val) catch { _ => () }
+      state.set(reg_pos, val) catch {
+        _ => ()
+      }
     }
   }
 
@@ -3065,11 +3200,16 @@ fn call_bytecode_function(
   while state.call_depth() > initial_depth {
     instruction_count = instruction_count + 1
     if instruction_count > 100 {
-      raise VMError::RuntimeError(message="Too many instructions in metamethod (possible infinite loop)")
+      raise VMError::RuntimeError(
+        message="Too many instructions in metamethod (possible infinite loop)",
+      )
     }
 
     let frame = state.current_frame() catch {
-      _ => raise VMError::RuntimeError(message="No active frame in metamethod call")
+      _ =>
+        raise VMError::RuntimeError(
+          message="No active frame in metamethod call",
+        )
     }
 
     // Check if we've finished executing this frame
@@ -3089,20 +3229,22 @@ fn call_bytecode_function(
     match result {
       ExecutionResult::Continue =>
         state.update_pc(frame.pc + 1) catch {
-          _ => raise VMError::RuntimeError(message="Failed to update PC in metamethod")
+          _ =>
+            raise VMError::RuntimeError(
+              message="Failed to update PC in metamethod",
+            )
         }
       ExecutionResult::Jump(offset) =>
         state.update_pc(frame.pc + 1 + offset) catch {
-          _ => raise VMError::RuntimeError(message="Failed to jump in metamethod")
+          _ =>
+            raise VMError::RuntimeError(message="Failed to jump in metamethod")
         }
-      ExecutionResult::Call => {
+      ExecutionResult::Call =>
         // Nested call - just continue with the new frame
         ()
-      }
-      ExecutionResult::Return => {
+      ExecutionResult::Return =>
         // Return handled, will exit loop if back to initial depth
         ()
-      }
     }
   }
 
@@ -3112,9 +3254,9 @@ fn call_bytecode_function(
 
   // Try to get at least one result, more if available
   // We'll collect all non-nil results starting from call_base + 1
-  for i = 0; i < 10; i = i + 1 {  // Arbitrary limit of 10 results
+  for i = 0; i < 10; i = i + 1 { // Arbitrary limit of 10 results
     let val = state.get(call_base + 1 + i) catch {
-      _ => break  // Can't read more results
+      _ => break // Can't read more results
     }
     // Stop at first nil (unless it's the only result)
     if val.is_nil() && i > 0 {
@@ -3122,7 +3264,7 @@ fn call_bytecode_function(
     }
     results.push(val)
     if val.is_nil() {
-      break  // Stop after first nil
+      break // Stop after first nil
     }
   }
 
@@ -3159,7 +3301,8 @@ fn execute_call(
       // IMPORTANT: Advance caller's PC before pushing new frame
       // Otherwise, when we return, we'll execute the CALL again (infinite loop)
       let caller_frame = state.current_frame() catch {
-        _ => raise VMError::RuntimeError(message="No caller frame for PC update")
+        _ =>
+          raise VMError::RuntimeError(message="No caller frame for PC update")
       }
       state.update_pc(caller_frame.pc + 1) catch {
         _ => raise VMError::RuntimeError(message="Failed to advance caller PC")
@@ -3205,14 +3348,16 @@ fn execute_call(
           let arg_pos = base + a + 1 + i
           let reg_pos = new_base + i + 1
           let val = state.get(arg_pos + 1) catch { _ => @value.TValue::nil() }
-          state.set(reg_pos, val) catch { _ => () }
+          state.set(reg_pos, val) catch {
+            _ => ()
+          }
         }
       }
 
       // Initialize missing parameters to nil
       for i = arg_count; i < param_count; i = i + 1 {
         state.set(new_base + i + 1, @value.TValue::nil()) catch {
-          _ => ()  // Ignore errors
+          _ => () // Ignore errors
         }
       }
 
@@ -3223,9 +3368,9 @@ fn execute_call(
     // Native function - call directly
     @value.TValue::NativeFunction(nfunc) => {
       execute_native_call(state, nfunc.name, a, b, c, base)
-      ExecutionResult::Continue  // Native function executed inline, just continue
+      ExecutionResult::Continue // Native function executed inline, just continue
     }
-    _ => {
+    _ =>
       // Check for __call metamethod
       match get_value_metamethod(func_val, "__call") {
         Some(@value.TValue::NativeFunction(nfunc)) => {
@@ -3241,7 +3386,7 @@ fn execute_call(
           }
 
           // Collect arguments including the object itself
-          let call_args : Array[@value.TValue] = [func_val]  // Object is first arg
+          let call_args : Array[@value.TValue] = [func_val] // Object is first arg
           for i = 0; i < arg_count; i = i + 1 {
             let arg = state.get(base + a + 2 + i) catch {
               _ => @value.TValue::nil()
@@ -3273,7 +3418,7 @@ fn execute_call(
           }
 
           // Collect arguments including the object itself
-          let call_args : Array[@value.TValue] = [func_val]  // Object is first arg
+          let call_args : Array[@value.TValue] = [func_val] // Object is first arg
           for i = 0; i < arg_count; i = i + 1 {
             let arg = state.get(base + a + 2 + i) catch {
               _ => @value.TValue::nil()
@@ -3293,14 +3438,12 @@ fn execute_call(
 
           ExecutionResult::Continue
         }
-        _ => {
+        _ =>
           // No __call metamethod, raise error
           raise VMError::InvalidOperation(
             message="Attempt to call non-function value",
           )
-        }
       }
-    }
   }
 }
 
@@ -3324,10 +3467,13 @@ fn get_metamethod(table : @value.Table, method_name : String) -> @value.TValue? 
 ///|
 /// Get a metamethod from any value's metatable
 /// Returns Some(metamethod) if found, None otherwise
-fn get_value_metamethod(value : @value.TValue, method_name : String) -> @value.TValue? {
+fn get_value_metamethod(
+  value : @value.TValue,
+  method_name : String,
+) -> @value.TValue? {
   match value {
     @value.TValue::Table(t) => get_metamethod(t, method_name)
-    _ => None  // Other types don't support metatables yet
+    _ => None // Other types don't support metatables yet
   }
 }
 
@@ -3379,7 +3525,7 @@ fn execute_return(
     if stack_top > start {
       stack_top - start
     } else {
-      1  // At least return nil
+      1 // At least return nil
     }
   } else {
     count
@@ -3398,7 +3544,9 @@ fn execute_return(
     // Results are placed starting at the function position in caller
     state.set(return_pos + i, val) catch {
       _ =>
-        raise VMError::RuntimeError(message="Failed to write return value at index \{return_pos + i}, stack_size=\{state.stack_size()}, return_pos=\{return_pos}, i=\{i}")
+        raise VMError::RuntimeError(
+          message="Failed to write return value at index \{return_pos + i}, stack_size=\{state.stack_size()}, return_pos=\{return_pos}, i=\{i}",
+        )
     }
   }
 }

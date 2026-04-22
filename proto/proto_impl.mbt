@@ -5,14 +5,18 @@
 ///|
 /// Upvalue descriptor (information about captured variables)
 pub struct UpvalueDesc {
-  in_stack : Bool  // true = capture from parent's local, false = from parent's upvalue
-  index : Int      // index in parent's locals or upvalues array
-  name : String    // variable name (for debugging)
+  in_stack : Bool // true = capture from parent's local, false = from parent's upvalue
+  index : Int // index in parent's locals or upvalues array
+  name : String // variable name (for debugging)
 } derive(Debug)
 
 ///|
 /// Create a new upvalue descriptor
-pub fn UpvalueDesc::new(in_stack : Bool, index : Int, name : String) -> UpvalueDesc {
+pub fn UpvalueDesc::new(
+  in_stack : Bool,
+  index : Int,
+  name : String,
+) -> UpvalueDesc {
   UpvalueDesc::{ in_stack, index, name }
 }
 
@@ -23,10 +27,10 @@ pub struct Proto[T] {
   code : Array[@opcodes.Instruction]
   constants : Array[T]
   protos : Array[Proto[T]] // Nested function prototypes
-  upvalue_count : Int   // Number of upvalues this function captures
-  upvalue_descs : Array[UpvalueDesc]  // Descriptors for capturing upvalues
-  param_count : Int     // Number of parameters this function expects
-  is_vararg : Bool      // Whether this function accepts varargs
+  upvalue_count : Int // Number of upvalues this function captures
+  upvalue_descs : Array[UpvalueDesc] // Descriptors for capturing upvalues
+  param_count : Int // Number of parameters this function expects
+  is_vararg : Bool // Whether this function accepts varargs
 } derive(Debug)
 
 ///|
@@ -38,7 +42,15 @@ pub fn[T] Proto::new(
   param_count : Int,
   is_vararg : Bool,
 ) -> Proto[T] {
-  Proto::{ code, constants, protos, upvalue_count: 0, upvalue_descs: [], param_count, is_vararg }
+  Proto::{
+    code,
+    constants,
+    protos,
+    upvalue_count: 0,
+    upvalue_descs: [],
+    param_count,
+    is_vararg,
+  }
 }
 
 ///|
@@ -52,7 +64,15 @@ pub fn[T] Proto::new_with_upvalues(
   param_count : Int,
   is_vararg : Bool,
 ) -> Proto[T] {
-  Proto::{ code, constants, protos, upvalue_count, upvalue_descs, param_count, is_vararg }
+  Proto::{
+    code,
+    constants,
+    protos,
+    upvalue_count,
+    upvalue_descs,
+    param_count,
+    is_vararg,
+  }
 }
 
 ///|

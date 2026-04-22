@@ -1,7 +1,8 @@
 // Lua CLI - Command Line Interface for Lua 5.4 interpreter
 // Supports standard Lua command-line options
 
-///| Main entry point for Lua CLI
+///|
+/// Main entry point for Lua CLI
 fn main {
   // Create command line parser
   let parser = @clap.Parser::new(
@@ -26,15 +27,9 @@ fn main {
         help="Require library 'mod' into global 'mod'",
       ),
       // Version
-      "version": @clap.Arg::flag(
-        short='v',
-        help="Show version information",
-      ),
+      "version": @clap.Arg::flag(short='v', help="Show version information"),
       // Ignore environment variables
-      "no_env": @clap.Arg::flag(
-        short='E',
-        help="Ignore environment variables",
-      ),
+      "no_env": @clap.Arg::flag(short='E', help="Ignore environment variables"),
       // Warnings as errors
       "warnings_as_errors": @clap.Arg::flag(
         short='W',
@@ -54,13 +49,12 @@ fn main {
     parser.parse(value, @sys.get_cli_args()) |> ignore
     handle_command(value)
   } catch {
-    err => {
-      println("Error: \{err}")
-    }
+    err => println("Error: \{err}")
   }
 }
 
-///| Handle parsed command line arguments
+///|
+/// Handle parsed command line arguments
 fn handle_command(value : @clap.SimpleValue) -> Unit {
   // Show version
   let version_flag = value.flags.get("version").unwrap_or(false)
@@ -71,27 +65,17 @@ fn handle_command(value : @clap.SimpleValue) -> Unit {
   }
 
   // Get options
-  let execute_str : String? = try {
-    value.get_option("execute")
-  } catch {
-    _ => None
-  }
+  let execute_str : String? = value.get_option("execute") catch { _ => None }
   let interactive_flag = value.flags.get("interactive").unwrap_or(false)
-  let libraries : Array[String] = try {
-    value.get_array("load")
-  } catch {
-    _ => []
-  }
+  let libraries : Array[String] = value.get_array("load") catch { _ => [] }
   let no_env_flag = value.flags.get("no_env").unwrap_or(false)
-  let warnings_as_errors_flag = value.flags.get("warnings_as_errors").unwrap_or(false)
+  let warnings_as_errors_flag = value.flags
+    .get("warnings_as_errors")
+    .unwrap_or(false)
 
   // Get positional arguments (script and args)
   // Note: get_positional() includes the program name as the first argument
-  let all_positional : Array[String] = try {
-    value.get_positional()
-  } catch {
-    _ => []
-  }
+  let all_positional : Array[String] = value.get_positional() catch { _ => [] }
 
   // Skip the first argument (program name)
   let positional : Array[String] = if all_positional.length() > 1 {
@@ -124,16 +108,13 @@ fn handle_command(value : @clap.SimpleValue) -> Unit {
 
   // Execute string (-e option)
   match execute_str {
-    Some(code) => {
-      try {
-        lua.load_string(code) |> ignore
-      } catch {
+    Some(code) =>
+      try lua.load_string(code) |> ignore catch {
         err => {
           println("Error executing code: \{err}")
           return
         }
       }
-    }
     None => ()
   }
 
@@ -154,19 +135,22 @@ fn handle_command(value : @clap.SimpleValue) -> Unit {
           dir = dir + path[i].to_int().unsafe_to_char().to_string()
         }
         dir
-      } else { "." }
+      } else {
+        "."
+      }
 
       // Update package.path inside the Lua state
-      let prep_path_code =
-        "local dir = '" + script_dir + "'\n" +
+      let prep_path_code = "local dir = '" +
+        script_dir +
+        "'\n" +
         "package.path = dir .. '/?.lua;' .. dir .. '/?/init.lua;' .. package.path\n"
-      try { lua.load_string(prep_path_code) |> ignore } catch { _ => () }
+      try lua.load_string(prep_path_code) |> ignore catch {
+        _ => ()
+      }
 
       // Read the script file using synchronous Node.js bindings (js.mbt)
       // Switch to mizchi/js Node fs for deterministic sync I/O under JS target
-      let content = try {
-        @fs.read_file_as_string(file)
-      } catch {
+      let content = @fs.read_file_as_string(file) catch {
         err => {
           println("Error reading file '\{file}': \{err}")
           return
@@ -174,21 +158,18 @@ fn handle_command(value : @clap.SimpleValue) -> Unit {
       }
 
       // Execute the script
-      try {
-        lua.load_string(content) |> ignore
-      } catch {
+      try lua.load_string(content) |> ignore catch {
         err => {
           println("Error executing script: \{err}")
           return
         }
       }
     }
-    None => {
+    None =>
       // No script file, enter REPL if no -e option
       if execute_str is None {
         repl(no_env_flag, warnings_as_errors_flag)
       }
-    }
   }
 
   // Enter interactive mode if -i flag is set
@@ -197,7 +178,8 @@ fn handle_command(value : @clap.SimpleValue) -> Unit {
   }
 }
 
-///| Start interactive REPL
+///|
+/// Start interactive REPL
 fn repl(no_env : Bool, warnings_as_errors : Bool) -> Unit {
   println("Lua 5.4.0  Copyright (C) 1994-2020 Lua.org, PUC-Rio")
   println("MoonBit port - Interactive mode")

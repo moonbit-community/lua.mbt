@@ -5,11 +5,11 @@
 ///|
 /// Call frame - tracks a function invocation
 pub struct CallFrame {
-  func : @value.FunctionValue  // The function being executed
-  base : Int  // Base stack index for this frame
-  mut pc : Int  // Program counter within this frame
-  num_results : Int  // Number of expected results
-  arg_count : Int  // Number of arguments passed to this function
+  func : @value.FunctionValue // The function being executed
+  base : Int // Base stack index for this frame
+  mut pc : Int // Program counter within this frame
+  num_results : Int // Number of expected results
+  arg_count : Int // Number of arguments passed to this function
 } derive(Debug)
 
 ///|
@@ -185,13 +185,10 @@ pub fn LuaState::set_global(
 
 ///|
 /// Get a global variable
-pub fn LuaState::get_global(
-  self : LuaState,
-  name : String,
-) -> @value.TValue {
+pub fn LuaState::get_global(self : LuaState, name : String) -> @value.TValue {
   match self.globals.get(name) {
     Some(value) => value
-    None => @value.TValue::nil()  // Undefined globals return nil in Lua
+    None => @value.TValue::nil() // Undefined globals return nil in Lua
   }
 }
 
@@ -255,7 +252,10 @@ pub fn LuaState::call_depth(self : LuaState) -> Int {
 
 ///|
 /// Update the PC of the current frame
-pub fn LuaState::update_pc(self : LuaState, new_pc : Int) -> Unit raise StateError {
+pub fn LuaState::update_pc(
+  self : LuaState,
+  new_pc : Int,
+) -> Unit raise StateError {
   let len = self.call_stack.length()
   if len > 0 {
     self.call_stack[len - 1].pc = new_pc
@@ -285,10 +285,7 @@ pub fn LuaState::find_or_create_upvalue(
 ///|
 /// Close all open upvalues at or above the given stack index
 /// Converts them from Open to Closed, capturing their current values
-pub fn LuaState::close_upvalues(
-  self : LuaState,
-  stack_index : Int,
-) -> Unit {
+pub fn LuaState::close_upvalues(self : LuaState, stack_index : Int) -> Unit {
   // Collect indices to remove (can't modify map while iterating)
   let to_close : Array[Int] = []
 
@@ -297,9 +294,7 @@ pub fn LuaState::close_upvalues(
     if idx >= stack_index {
       to_close.push(idx)
       // Capture the current stack value and close the upvalue
-      let value = self.get(idx) catch {
-        _ => @value.TValue::nil()
-      }
+      let value = self.get(idx) catch { _ => @value.TValue::nil() }
       @value.upvalue_close(uv, value)
     }
   }

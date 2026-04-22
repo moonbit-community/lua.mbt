@@ -18,7 +18,9 @@ pub fn LuaAPI::new() -> LuaAPI {
 
   // Register compiler callback for load() function
   // This avoids circular dependencies by injecting compilation at API level
-  state.set_compiler(fn(source : String) -> @value.TValue raise @state.StateError {
+  state.set_compiler(fn(
+    source : String,
+  ) -> @value.TValue raise @state.StateError {
     // Lex the source
     let lexer = @lex.Lexer::new(source)
 
@@ -72,9 +74,9 @@ pub fn LuaAPI::new() -> LuaAPI {
       proto.code,
       proto.constants,
       proto.protos,
-      [],  // No upvalues for dynamically loaded code
-      0,   // No parameters (chunk functions take no params)
-      false,  // Not vararg
+      [], // No upvalues for dynamically loaded code
+      0, // No parameters (chunk functions take no params)
+      false, // Not vararg
     )
 
     @value.TValue::function(func)
@@ -130,9 +132,7 @@ pub fn LuaAPI::load_string(
         message="Break statement outside loop at line \{line}",
       )
     @compile.CompileError::InvalidSyntax(message~, line~) =>
-      raise APIError::SyntaxError(
-        message="\{message} at line \{line}",
-      )
+      raise APIError::SyntaxError(message="\{message} at line \{line}")
   }
 
   // Execute the bytecode
@@ -198,9 +198,7 @@ pub fn LuaAPI::compile_string(
         message="Break statement outside loop at line \{line}",
       )
     @compile.CompileError::InvalidSyntax(message~, line~) =>
-      raise APIError::SyntaxError(
-        message="\{message} at line \{line}",
-      )
+      raise APIError::SyntaxError(message="\{message} at line \{line}")
   }
 
   // Create function value from proto without executing
@@ -208,9 +206,9 @@ pub fn LuaAPI::compile_string(
     proto.code,
     proto.constants,
     proto.protos,
-    [],  // No upvalues for dynamically loaded code
-    0,   // No parameters (chunk functions take no params)
-    false,  // Not vararg
+    [], // No upvalues for dynamically loaded code
+    0, // No parameters (chunk functions take no params)
+    false, // Not vararg
   )
 
   @value.TValue::function(func)
@@ -218,11 +216,7 @@ pub fn LuaAPI::compile_string(
 
 ///|
 /// Execute loaded code (protected call)
-pub fn LuaAPI::pcall(
-  self : LuaAPI,
-  nargs : Int,
-  nresults : Int,
-) -> Status {
+pub fn LuaAPI::pcall(self : LuaAPI, nargs : Int, nresults : Int) -> Status {
   // For now, this is a simplified implementation
   // In a full implementation, this would execute a function on the stack
   ignore(self)

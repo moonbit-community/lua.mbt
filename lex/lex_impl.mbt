@@ -39,7 +39,12 @@ pub fn Lexer::new(source : String) -> Lexer {
 /// Check if character is a whitespace
 /// Lua treats all control characters as whitespace outside strings
 fn is_whitespace(c : Char) -> Bool {
-  c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u000B' || c == '\u000C'
+  c == ' ' ||
+  c == '\t' ||
+  c == '\n' ||
+  c == '\r' ||
+  c == '\u000B' ||
+  c == '\u000C'
 }
 
 ///|
@@ -185,15 +190,17 @@ fn Lexer::skip_whitespace(self : Lexer) -> Unit {
 
                         // Count '=' characters
                         let mut found_equals = 0
-                        while self.current() == Some('=') && found_equals < equals_count {
+                        while self.current() == Some('=') &&
+                              found_equals < equals_count {
                           found_equals = found_equals + 1
                           ignore(self.advance())
                         }
 
                         // Check for final ']'
-                        if found_equals == equals_count && self.current() == Some(']') {
+                        if found_equals == equals_count &&
+                          self.current() == Some(']') {
                           ignore(self.advance()) // consume final ']'
-                          break  // Found closing delimiter
+                          break // Found closing delimiter
                         } else {
                           // False alarm, restore position and continue
                           self.pos = check_pos
@@ -205,7 +212,7 @@ fn Lexer::skip_whitespace(self : Lexer) -> Unit {
                       Some(_) => ignore(self.advance())
                     }
                   }
-                  continue  // Done with multiline comment, look for more whitespace
+                  continue // Done with multiline comment, look for more whitespace
                 } else {
                   // Not a long comment, restore and treat as single-line
                   self.pos = save_pos
@@ -385,19 +392,19 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
               ignore(self.advance())
             }
             Some('a') => {
-              content.write_char('\u0007')  // Bell/alert
+              content.write_char('\u0007') // Bell/alert
               ignore(self.advance())
             }
             Some('b') => {
-              content.write_char('\u0008')  // Backspace
+              content.write_char('\u0008') // Backspace
               ignore(self.advance())
             }
             Some('f') => {
-              content.write_char('\u000C')  // Form feed
+              content.write_char('\u000C') // Form feed
               ignore(self.advance())
             }
             Some('v') => {
-              content.write_char('\u000B')  // Vertical tab
+              content.write_char('\u000B') // Vertical tab
               ignore(self.advance())
             }
             Some('\\') => {
@@ -417,8 +424,12 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
               ignore(self.advance())
               while true {
                 match self.current() {
-                  Some(c) if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u000B' || c == '\u000C' =>
-                    ignore(self.advance())
+                  Some(c) if c == ' ' ||
+                    c == '\t' ||
+                    c == '\n' ||
+                    c == '\r' ||
+                    c == '\u000B' ||
+                    c == '\u000C' => ignore(self.advance())
                   _ => break
                 }
               }
@@ -489,10 +500,10 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
                 // 5-byte UTF-8: 11111000 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx (21 bits)
                 // Manual encoding to avoid MoonBit bug
                 let b1 = 0xF8 | (unicode_value >> 24).land(0x03)
-                let b2 = 0x80 | ((unicode_value >> 18).land(0x3F))
-                let b3 = 0x80 | ((unicode_value >> 12).land(0x3F))
-                let b4 = 0x80 | ((unicode_value >> 6).land(0x3F))
-                let b5 = 0x80 | (unicode_value.land(0x3F))
+                let b2 = 0x80 | (unicode_value >> 18).land(0x3F)
+                let b3 = 0x80 | (unicode_value >> 12).land(0x3F)
+                let b4 = 0x80 | (unicode_value >> 6).land(0x3F)
+                let b5 = 0x80 | unicode_value.land(0x3F)
                 content.write_char(b1.unsafe_to_char())
                 content.write_char(b2.unsafe_to_char())
                 content.write_char(b3.unsafe_to_char())
@@ -501,11 +512,11 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
               } else if unicode_value <= 0x7FFFFFFF {
                 // 6-byte UTF-8: 11111100 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx (26 bits)
                 let b1 = 0xFC | (unicode_value >> 30).land(0x01)
-                let b2 = 0x80 | ((unicode_value >> 24).land(0x3F))
-                let b3 = 0x80 | ((unicode_value >> 18).land(0x3F))
-                let b4 = 0x80 | ((unicode_value >> 12).land(0x3F))
-                let b5 = 0x80 | ((unicode_value >> 6).land(0x3F))
-                let b6 = 0x80 | (unicode_value.land(0x3F))
+                let b2 = 0x80 | (unicode_value >> 24).land(0x3F)
+                let b3 = 0x80 | (unicode_value >> 18).land(0x3F)
+                let b4 = 0x80 | (unicode_value >> 12).land(0x3F)
+                let b5 = 0x80 | (unicode_value >> 6).land(0x3F)
+                let b6 = 0x80 | unicode_value.land(0x3F)
                 content.write_char(b1.unsafe_to_char())
                 content.write_char(b2.unsafe_to_char())
                 content.write_char(b3.unsafe_to_char())
@@ -549,7 +560,8 @@ fn Lexer::scan_string(self : Lexer, quote : Char) -> Token raise LexError {
               while digit_count < 3 {
                 match self.current() {
                   Some(d2) if is_digit(d2) => {
-                    let new_value = dec_value * 10 + (d2.to_int() - '0'.to_int())
+                    let new_value = dec_value * 10 +
+                      (d2.to_int() - '0'.to_int())
                     if new_value > 255 {
                       break
                     }
@@ -634,7 +646,7 @@ fn Lexer::scan_long_string(self : Lexer) -> Token raise LexError {
         // Check for final ']'
         if found_equals == equals_count && self.current() == Some(']') {
           ignore(self.advance()) // consume final ']'
-          break  // Found closing delimiter
+          break // Found closing delimiter
         } else {
           // False alarm, restore position and add to content
           self.pos = save_pos

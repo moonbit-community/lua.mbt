@@ -11,6 +11,7 @@ pub(all) suberror VMError {
   RuntimeError(message~ : String)
 } derive(Eq, Debug, ToJson)
 
+///|
 pub impl Show for VMError with output(self, logger) {
   logger.write_string(@debug.to_string(self))
 }
@@ -24,7 +25,10 @@ pub type ExecutionResult
 /// Execute bytecode on a Lua state
 /// Now supports function calls via call stack
 #declaration_only
-pub fn execute(state : @state.LuaState, proto : @proto.Proto[@value.TValue]) -> Unit raise VMError {
+pub fn execute(
+  state : @state.LuaState,
+  proto : @proto.Proto[@value.TValue],
+) -> Unit raise VMError {
   ...
 }
 

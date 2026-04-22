@@ -1,3 +1,0 @@
-{
-  "import": ["lua/value", "moonbitlang/core/debug"]
-}

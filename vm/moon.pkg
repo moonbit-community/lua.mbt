@@ -1,0 +1,14 @@
+import {
+  "lua/value",
+  "lua/opcodes",
+  "lua/state",
+  "lua/stdlib",
+  "lua/proto",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/math",
+  "mizchi/js/node/fs",
+}
+
+options(
+  supported_targets: "js",
+)

@@ -11,8 +11,8 @@ pub struct UpvalueCell {
 ///|
 /// The actual upvalue storage - either open (stack reference) or closed (heap copy)
 pub enum UpvalueKind {
-  Open(Int)  // Stack index
-  Closed(Ref[TValue])  // Captured value
+  Open(Int) // Stack index
+  Closed(Ref[TValue]) // Captured value
 } derive(Debug)
 
 ///|
@@ -43,10 +43,10 @@ pub fn upvalue_close(upvalue : Upvalue, value : TValue) -> Unit {
 pub struct FunctionValue {
   code : Array[@opcodes.Instruction]
   constants : Array[TValue]
-  protos : Array[@proto.Proto[TValue]]  // Nested function prototypes
-  upvalues : Array[Upvalue]  // Changed from Array[TValue] to Array[Upvalue]
-  param_count : Int  // Number of parameters this function expects
-  is_vararg : Bool   // Whether this function accepts varargs
+  protos : Array[@proto.Proto[TValue]] // Nested function prototypes
+  upvalues : Array[Upvalue] // Changed from Array[TValue] to Array[Upvalue]
+  param_count : Int // Number of parameters this function expects
+  is_vararg : Bool // Whether this function accepts varargs
 } derive(Debug)
 
 ///|
@@ -55,7 +55,14 @@ pub fn FunctionValue::new(
   code : Array[@opcodes.Instruction],
   constants : Array[TValue],
 ) -> FunctionValue {
-  FunctionValue::{ code, constants, protos: [], upvalues: [], param_count: 0, is_vararg: false }
+  FunctionValue::{
+    code,
+    constants,
+    protos: [],
+    upvalues: [],
+    param_count: 0,
+    is_vararg: false,
+  }
 }
 
 ///|
@@ -65,7 +72,14 @@ pub fn FunctionValue::new_with_params(
   constants : Array[TValue],
   param_count : Int,
 ) -> FunctionValue {
-  FunctionValue::{ code, constants, protos: [], upvalues: [], param_count, is_vararg: false }
+  FunctionValue::{
+    code,
+    constants,
+    protos: [],
+    upvalues: [],
+    param_count,
+    is_vararg: false,
+  }
 }
 
 ///|
@@ -76,7 +90,14 @@ pub fn FunctionValue::new_full(
   param_count : Int,
   is_vararg : Bool,
 ) -> FunctionValue {
-  FunctionValue::{ code, constants, protos: [], upvalues: [], param_count, is_vararg }
+  FunctionValue::{
+    code,
+    constants,
+    protos: [],
+    upvalues: [],
+    param_count,
+    is_vararg,
+  }
 }
 
 ///|
@@ -96,7 +117,7 @@ pub fn FunctionValue::new_with_protos(
 /// Native function wrapper - identifies a native MoonBit function by name
 /// The actual implementation is looked up in the VM
 pub struct NativeFunctionValue {
-  name : String  // Function name for lookup (e.g., "print", "type", etc.)
+  name : String // Function name for lookup (e.g., "print", "type", etc.)
 } derive(Debug)
 
 ///|
@@ -110,15 +131,18 @@ pub fn NativeFunctionValue::new(name : String) -> NativeFunctionValue {
 /// Uses array for integer keys 1..n and hash for other keys
 /// Each table has a unique ID for reference equality
 pub struct Table {
-  id : Int  // Unique ID for reference equality
-  array : Array[TValue]  // Array part for integer keys
-  hash : Map[String, TValue]  // Hash part for string keys
-  mut metatable : TValue  // Metatable for this table (Nil or another Table)
+  id : Int // Unique ID for reference equality
+  array : Array[TValue] // Array part for integer keys
+  hash : Map[String, TValue] // Hash part for string keys
+  mut metatable : TValue // Metatable for this table (Nil or another Table)
 } derive(Debug)
 
 // Generate unique table IDs using a counter
+
+///|
 let table_id_counter : Ref[Int] = { val: 0 }
 
+///|
 fn next_table_id() -> Int {
   let id = table_id_counter.val
   table_id_counter.val = id + 1
@@ -177,7 +201,7 @@ fn tvalue_to_hash_key(key : TValue) -> String? {
     TValue::Table(t) => Some("table:" + t.id.to_string())
     TValue::Function(f) => Some("func:" + @debug.to_string(f))
     TValue::NativeFunction(f) => Some("nfunc:" + f.name)
-    _ => None  // Integer and String handled separately, Nil not valid as key
+    _ => None // Integer and String handled separately, Nil not valid as key
   }
 }
 
@@ -194,25 +218,26 @@ pub fn Table::get(self : Table, key : TValue) -> TValue {
       } else {
         // Non-integer number, use hash
         match tvalue_to_hash_key(key) {
-          Some(hash_key) => match self.hash.get(hash_key) {
-            Some(v) => v
-            None => TValue::nil()
-          }
+          Some(hash_key) =>
+            match self.hash.get(hash_key) {
+              Some(v) => v
+              None => TValue::nil()
+            }
           None => TValue::nil()
         }
       }
     }
     TValue::String(s) => self.get_string(s)
-    _ => {
+    _ =>
       // Boolean, Table, Function, etc.
       match tvalue_to_hash_key(key) {
-        Some(hash_key) => match self.hash.get(hash_key) {
-          Some(v) => v
-          None => TValue::nil()
-        }
+        Some(hash_key) =>
+          match self.hash.get(hash_key) {
+            Some(v) => v
+            None => TValue::nil()
+          }
         None => TValue::nil()
       }
-    }
   }
 }
 
@@ -230,18 +255,17 @@ pub fn Table::set(self : Table, key : TValue, value : TValue) -> Unit {
         // Non-integer number, use hash
         match tvalue_to_hash_key(key) {
           Some(hash_key) => self.hash[hash_key] = value
-          None => ()  // Nil key is invalid
+          None => () // Nil key is invalid
         }
       }
     }
     TValue::String(s) => self.set_string(s, value)
-    _ => {
+    _ =>
       // Boolean, Table, Function, etc.
       match tvalue_to_hash_key(key) {
         Some(hash_key) => self.hash[hash_key] = value
-        None => ()  // Nil key is invalid
+        None => () // Nil key is invalid
       }
-    }
   }
 }
 
@@ -254,8 +278,8 @@ pub fn Table::length(self : Table) -> Int {
   let mut i = self.array.length()
   while i > 0 {
     match self.array[i - 1] {
-      TValue::Nil => i = i - 1  // Skip trailing nils
-      _ => return i  // Found last non-nil element
+      TValue::Nil => i = i - 1 // Skip trailing nils
+      _ => return i // Found last non-nil element
     }
   }
   // All elements are nil (or array is empty)
@@ -284,8 +308,8 @@ pub enum TValue {
   Number(Double)
   String(String)
   Function(FunctionValue)
-  NativeFunction(NativeFunctionValue)  // Native MoonBit functions
-  Table(Table)  // Table support added
+  NativeFunction(NativeFunctionValue) // Native MoonBit functions
+  Table(Table) // Table support added
 } derive(Debug)
 
 ///|
@@ -460,7 +484,7 @@ fn try_parse_number(s : String) -> Double? {
       } else if c >= 'A' && c <= 'F' {
         c.to_int() - 'A'.to_int() + 10
       } else {
-        return None  // Invalid hex digit
+        return None // Invalid hex digit
       }
       result = result * 16 + digit.to_int64()
     }
@@ -468,9 +492,7 @@ fn try_parse_number(s : String) -> Double? {
   }
 
   // Parse as decimal number using standard library
-  try {
-    Some(@string.parse_double(trimmed))
-  } catch {
+  Some(@string.parse_double(trimmed)) catch {
     _ => None
   }
 }
@@ -481,7 +503,7 @@ pub fn TValue::to_number(self : TValue) -> Double raise ValueError {
   match self {
     Integer(i) => i.to_double()
     Number(n) => n
-    String(s) => {
+    String(s) =>
       // Try to parse string as number (implicit conversion)
       // Convert to string and parse
       match try_parse_number(s) {
@@ -492,7 +514,6 @@ pub fn TValue::to_number(self : TValue) -> Double raise ValueError {
             actual=self.type_of(),
           )
       }
-    }
     _ =>
       raise ValueError::TypeMismatch(
         expected=LuaType::Number,
