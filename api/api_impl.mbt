@@ -25,7 +25,7 @@ pub fn LuaAPI::new() -> LuaAPI {
     // Parse into AST
     let parser = @parse.Parser::new(lexer)
     let stmt = parser.parse_chunk() catch {
-      @parse.ParseError::UnexpectedToken(expected~, actual~, line~, ..) =>
+      @parse.ParseError::UnexpectedToken(expected~, actual~, line~) =>
         raise @state.StateError::RuntimeError(
           message="Unexpected token '\{actual}', expected '\{expected}' at line \{line}",
         )
@@ -95,7 +95,7 @@ pub fn LuaAPI::load_string(
   // Parse into AST
   let parser = @parse.Parser::new(lexer)
   let stmt = parser.parse_chunk() catch {
-    @parse.ParseError::UnexpectedToken(expected~, actual~, line~, ..) =>
+    @parse.ParseError::UnexpectedToken(expected~, actual~, line~) =>
       raise APIError::SyntaxError(
         message="Unexpected token '\{actual}', expected '\{expected}' at line \{line}",
       )
@@ -162,7 +162,7 @@ pub fn LuaAPI::compile_string(
   // Parse into AST
   let parser = @parse.Parser::new(lexer)
   let stmt = parser.parse_chunk() catch {
-    @parse.ParseError::UnexpectedToken(expected~, actual~, line~, ..) =>
+    @parse.ParseError::UnexpectedToken(expected~, actual~, line~) =>
       raise APIError::SyntaxError(
         message="Unexpected token '\{actual}', expected '\{expected}' at line \{line}",
       )
