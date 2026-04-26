@@ -9,6 +9,4 @@ import {
   "mizchi/js/node/fs",
 }
 
-options(
-  supported_targets: "js",
-)
+supported_targets = "js"

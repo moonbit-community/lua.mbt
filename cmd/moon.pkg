@@ -5,7 +5,8 @@ import {
   "lua/api",
 }
 
+supported_targets = "js"
+
 options(
   is_main: true,
-  supported_targets: "js",
 )
