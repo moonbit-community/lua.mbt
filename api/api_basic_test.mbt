@@ -14,7 +14,7 @@ test "push and get numbers" {
   api.push_nil()
   inspect(api.get_top(), content="3")
   assert_true(api.to_boolean(-2))
-  inspect(try? api.to_number(1), content="Ok(3.14)")
+  debug_inspect(try? api.to_number(1), content="Ok(3.14)")
 }
 
 ///|
@@ -23,7 +23,7 @@ test "set and get globals" {
   api.push_number(42.0)
   api.set_global("x")
   api.get_global("x")
-  inspect(try? api.to_number(-1), content="Ok(42)")
+  debug_inspect(try? api.to_number(-1), content="Ok(42)")
 }
 
 ///|

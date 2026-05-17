@@ -8,7 +8,7 @@ test "execute simple MOVE instruction" {
   let instr = @opcodes.Instruction::abc(@opcodes.OpCode::Move, 1, 0, 0, false)
   ignore(try! execute_instruction(state, instr, [], 0))
   let val = try! state.get(2)
-  inspect(try? val.to_integer(), content="Ok(42)")
+  debug_inspect(try? val.to_integer(), content="Ok(42)")
 }
 
 ///|
@@ -21,7 +21,7 @@ test "execute LOADK instruction" {
   let instr = @opcodes.Instruction::abx(@opcodes.OpCode::LoadK, 0, 0)
   ignore(try! execute_instruction(state, instr, constants, 0))
   let val = try! state.get(1)
-  inspect(try? val.to_integer(), content="Ok(100)")
+  debug_inspect(try? val.to_integer(), content="Ok(100)")
 }
 
 ///|
@@ -33,7 +33,7 @@ test "execute ADD instruction" {
   let instr = @opcodes.Instruction::abc(@opcodes.OpCode::Add, 2, 0, 1, false)
   ignore(try! execute_instruction(state, instr, [], 0))
   let result = try! state.get(3)
-  inspect(try? result.to_integer(), content="Ok(30)")
+  debug_inspect(try? result.to_integer(), content="Ok(30)")
 }
 
 ///|

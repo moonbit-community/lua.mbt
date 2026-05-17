@@ -40,23 +40,23 @@ test "assert function" {
 ///|
 test "math.abs function" {
   let val = try! math_abs(@value.TValue::integer(-42L))
-  inspect(try? val.to_integer(), content="Ok(42)")
+  debug_inspect(try? val.to_integer(), content="Ok(42)")
   let val2 = try! math_abs(@value.TValue::number(-3.14))
-  inspect(try? val2.to_number(), content="Ok(3.14)")
+  debug_inspect(try? val2.to_number(), content="Ok(3.14)")
 }
 
 ///|
 test "math.floor and ceil functions" {
   let floor_val = try! math_floor(@value.TValue::number(3.7))
-  inspect(try? floor_val.to_number(), content="Ok(3)")
+  debug_inspect(try? floor_val.to_number(), content="Ok(3)")
   let ceil_val = try! math_ceil(@value.TValue::number(3.2))
-  inspect(try? ceil_val.to_number(), content="Ok(4)")
+  debug_inspect(try? ceil_val.to_number(), content="Ok(4)")
 }
 
 ///|
 test "math.sqrt function" {
   let val = try! math_sqrt(@value.TValue::integer(16L))
-  inspect(try? val.to_number(), content="Ok(4)")
+  debug_inspect(try? val.to_number(), content="Ok(4)")
 }
 
 ///|
