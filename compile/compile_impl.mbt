@@ -18,7 +18,7 @@ fn split_by_dots(s : String) -> Array[String] {
   for i = 0; i < s.length(); i = i + 1 {
     if s[i].to_int() == '.'.to_int() {
       if i > start {
-        let part = s[start:i].to_string()
+        let part = s[start:i].to_owned()
         if part.length() > 0 {
           parts.push(part)
         }
@@ -28,7 +28,7 @@ fn split_by_dots(s : String) -> Array[String] {
   }
   // Add the last part
   if start < s.length() {
-    let part = s[start:].to_string()
+    let part = s[start:].to_owned()
     if part.length() > 0 {
       parts.push(part)
     }
