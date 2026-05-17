@@ -25,11 +25,11 @@ test "stack indexing" {
 
   // Positive indices (1-based from bottom)
   let val1 = try! state.get(1)
-  inspect(try? val1.to_integer(), content="Ok(1)")
+  debug_inspect(try? val1.to_integer(), content="Ok(1)")
 
   // Negative indices (from top)
   let val_top = try! state.get(-1)
-  inspect(try? val_top.to_integer(), content="Ok(3)")
+  debug_inspect(try? val_top.to_integer(), content="Ok(3)")
 }
 
 ///|
@@ -38,7 +38,7 @@ test "global variables" {
   state.set_global("x", @value.TValue::integer(100L))
   assert_true(state.has_global("x"))
   let val = state.get_global("x")
-  inspect(try? val.to_integer(), content="Ok(100)")
+  debug_inspect(try? val.to_integer(), content="Ok(100)")
 }
 
 ///|
