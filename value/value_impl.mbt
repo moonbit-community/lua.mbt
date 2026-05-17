@@ -474,7 +474,7 @@ fn try_parse_number(s : String) -> Double? {
   // Check for hex format
   if trimmed.has_prefix("0x") || trimmed.has_prefix("0X") {
     // Parse as hex integer
-    let hex_str = trimmed[2:].to_string()
+    let hex_str = trimmed[2:].to_owned()
     let mut result : Int64 = 0
     for c in hex_str {
       let digit = if c >= '0' && c <= '9' {

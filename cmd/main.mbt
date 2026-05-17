@@ -79,7 +79,7 @@ fn handle_command(value : @clap.SimpleValue) -> Unit {
 
   // Skip the first argument (program name)
   let positional : Array[String] = if all_positional.length() > 1 {
-    all_positional[1:].to_array()
+    all_positional[1:].to_owned()
   } else {
     []
   }
@@ -91,7 +91,7 @@ fn handle_command(value : @clap.SimpleValue) -> Unit {
   }
 
   let _script_args : Array[String] = if positional.length() > 1 {
-    positional[1:].to_array()
+    positional[1:].to_owned()
   } else {
     []
   }

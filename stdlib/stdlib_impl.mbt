@@ -34,7 +34,7 @@ pub fn tonumber(value : @value.TValue) -> @value.TValue raise StdlibError {
       // Try to parse as number (supports decimal and hex)
       let num = if s.has_prefix("0x") || s.has_prefix("0X") {
         // Parse hexadecimal
-        let hex_str = s[2:].to_string()
+        let hex_str = s[2:].to_owned()
         match parse_hex_string(hex_str) {
           Some(n) => n.to_double()
           None =>
@@ -251,7 +251,7 @@ pub fn string_sub(
         if start_idx >= actual_end {
           ""
         } else {
-          str[start_idx:actual_end].to_string()
+          str[start_idx:actual_end].to_owned()
         }
       }
     }
@@ -583,9 +583,9 @@ pub fn string_find(
       let anchor_start = pat_len > 0 && pat[0] == '^'
       let anchor_end = pat_len > 0 && pat[pat_len - 1] == '$'
 
-      let search_pat = if anchor_start { pat[1:].to_string() } else { pat }
+      let search_pat = if anchor_start { pat[1:].to_owned() } else { pat }
       let search_pat_final = if anchor_end && search_pat.length() > 0 {
-        search_pat[:search_pat.length() - 1].to_string()
+        search_pat[:search_pat.length() - 1].to_owned()
       } else {
         search_pat
       }

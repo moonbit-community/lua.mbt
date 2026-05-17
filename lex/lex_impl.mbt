@@ -297,7 +297,7 @@ fn Lexer::scan_number(self : Lexer) -> Token {
           _ => ()
         }
 
-        let lexeme = self.source[start_pos:self.pos].to_string()
+        let lexeme = self.source[start_pos:self.pos].to_owned()
         return Token::{
           type_: TokenType::TkNumber,
           lexeme,
@@ -351,7 +351,7 @@ fn Lexer::scan_number(self : Lexer) -> Token {
     }
     _ => ()
   }
-  let lexeme = self.source[start_pos:self.pos].to_string()
+  let lexeme = self.source[start_pos:self.pos].to_owned()
   Token::{
     type_: TokenType::TkNumber,
     lexeme,
@@ -683,7 +683,7 @@ fn Lexer::scan_identifier(self : Lexer) -> Token {
       _ => break
     }
   }
-  let lexeme = self.source[start_pos:self.pos].to_string()
+  let lexeme = self.source[start_pos:self.pos].to_owned()
   let type_ = match keyword_type(lexeme) {
     Some(kw) => kw
     None => TokenType::TkName

@@ -926,7 +926,7 @@ fn Parser::parse_primary(self : Parser) -> Expr raise ParseError {
       // Parse the number
       let num = if tok.lexeme.has_prefix("0x") || tok.lexeme.has_prefix("0X") {
         // Parse hex number (could be integer or float)
-        let hex_str = tok.lexeme[2:].to_string() // Skip "0x" or "0X"
+        let hex_str = tok.lexeme[2:].to_owned() // Skip "0x" or "0X"
 
         // Check if it contains decimal point or exponent (p/P) -> hex float
         if hex_str.contains(".") ||
